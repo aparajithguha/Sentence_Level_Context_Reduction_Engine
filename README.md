@@ -140,7 +140,7 @@ sequenceDiagram
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/scre.git
+git clone https://github.com/aparajithguha/Sentence_Level_Context_Reduction_Engine.git
 cd scre
 
 # Install in editable mode with all dependencies
