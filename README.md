@@ -59,11 +59,7 @@ graph TB
     J --> K
     K --> L
     
-    style A fill:#e1f5ff
-    style K fill:#c8e6c9
-    style L fill:#fff3e0
-    style G fill:#f3e5f5
-    style H fill:#f3e5f5
+    
 ```
 
 ---
@@ -459,11 +455,6 @@ We welcome contributions! Please:
 
 ---
 
-## 📧 Support
-
-For issues, questions, or feature requests, please open a GitHub issue.
-
----
 
 ## 🙏 Acknowledgments
 
@@ -477,27 +468,6 @@ Built with:
 python tests/benchmark_v2.py
 ```
 *(Results are automatically tracked historically in `BENCHMARK_REPORT.md`)*
-
----
-
-## 🗂️ Project Structure
-
-```text
-SCRE/
-├── scre/                       # Core Library
-│   ├── query_aware_reducer.py  # Graph-based sentence extraction & scoring
-│   ├── scre_answer_engine.py   # RAG QA execution (Extractive & Ollama Support)
-│   └── scre_pipeline.py        # End-to-end integration wrappers
-├── tests/                      # Testing & Benchmarking
-│   ├── benchmark_v2.py         # Advanced multi-strategy evaluation framework
-│   ├── scre_eval.py            # Local evaluation harness (Meaning Retention Score)
-│   └── qa_dataset.py           # Evaluation ground-truth datasets
-├── data/                       # Benchmark Test Data
-│   ├── sdlc_project_benchmark.txt
-│   └── bench_answers.txt
-└── pyproject.toml              # Modern Python packaging configuration
-```
-
 ---
 
 ## 🤝 Current Direction
@@ -506,9 +476,7 @@ SCRE has evolved from a naive triple-extraction prototype to a fully mature **qu
 * Native LangChain and LlamaIndex retriever abstractions.
 * Distributed SQLite optimizations for massive batch processing.
 * Deep integration with structured JSON/Markdown formats (Workflows, SDLC formats).
+* This repo no longer uses the older graph/triple compression prototype.
+* The working direction is query-conditioned reduction, because token savings only
+* matter if answer fidelity is preserved for a specific ask.
 
-## Current direction
-
-This repo no longer uses the older graph/triple compression prototype.
-The working direction is query-conditioned reduction, because token savings only
-matter if answer fidelity is preserved for a specific ask.
