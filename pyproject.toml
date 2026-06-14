@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "scre"
+version = "0.1.0"
+description = "Sentence-level Context Reduction Engine (SCRE) for RAG pipelines."
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [
+    { name = "Aparajith Guha" }
+]
+dependencies = [
+    "spacy>=3.0.0",
+]
+
+[project.optional-dependencies]
+ml = [
+    "sentence-transformers",
+    "torch",
+    "tiktoken"
+]
+llm = [
+    "ollama"
+]
+eval = [
+    "rank_bm25"
+]
+all = [
+    "sentence-transformers",
+    "torch",
+    "tiktoken",
+    "ollama",
+    "rank_bm25"
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["scre"]

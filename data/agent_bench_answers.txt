@@ -1,0 +1,93 @@
+================================================================================
+MULTI-AGENT SDLC BENCHMARK - GROUND TRUTH ANSWER KEY (Q-01 to Q-30)
+================================================================================
+
+[Q-01] ANSWER KEY:
+  The Reviewer Agent (AGENT-REV-07). Its operational parameters mandate checking changesets to block the inclusion of copyleft licensing frameworks like GPL v3 or AGPL.
+
+[Q-02] ANSWER KEY:
+  AGENT-INT-03 receives raw code modules, runtime logs, and compiler warning text, focusing on functional behavior. AGENT-ANA-02 receives absolute source directories and abstract syntax tree (AST) JSON configurations to audit structure and security.
+
+[Q-03] ANSWER KEY:
+  A semantic tracking format using strict uppercase indicators enclosed in square brackets: `[REQ-01]`, `[REQ-02]`.
+
+[Q-04] ANSWER KEY:
+  The Code Implementation Agent (AGENT-IMP-04), which injects OpenTelemetry trace spans natively into code, and the Code Analysis Agent (AGENT-ANA-02), which extracts telemetry loops to audit systemic tracking paths.
+
+[Q-05] ANSWER KEY:
+  A customized COCOMO II (Constructive Cost Model) framework driven by historical velocity indexes and complexity indicators.
+
+[Q-06] ANSWER KEY:
+  A binary verification verdict labeled as "Compliance Certification Verdict". The two acceptable indicator states are exactly `APPROVED` or `REJECTED`.
+
+[Q-07] ANSWER KEY:
+  By mapping out high-concurrency race vectors, deadlocks, and creating high-load scenarios designed to induce race conditions or memory degradation states.
+
+[Q-08] ANSWER KEY:
+  The agent must produce non-root execution structures, ensuring all processed code packages run cleanly within constrained user-space limits.
+
+[Q-09] ANSWER KEY:
+  The Code Interpret Agent (AGENT-INT-03), which parses undocumented source tracks to generate clear algorithms and data execution loops.
+
+[Q-10] ANSWER KEY:
+  A rigid structural grid formatted as: `(File:Line | Issue Severity | CWE Mapping | Remediation)`.
+
+[Q-11] ANSWER KEY:
+  AGENT-IMP-04 synthesizes the core application components using interface stubs, which directly feed into AGENT-TST-08's data verification mock engines to run automated regression checks.
+
+[Q-12] ANSWER KEY:
+  Validation rules, mutation tracking hooks, and transaction execution parameters tied directly to each data change action.
+
+[Q-13] ANSWER KEY:
+  The Tester Agent must optimize testing steps to target exactly 100% logic code statement visibility coverage.
+
+[Q-14] ANSWER KEY:
+  The Code Analysis Agent (AGENT-ANA-02). Its operational parameters require evaluating visibility parameters, identifying leaked configurations, and computing cyclomatic complexity metrics.
+
+[Q-15] ANSWER KEY:
+  The agent automatically flags the modification as an audit failure, transitions the file to a blocked state, and outputs a mandatory remediation task detailing the missing trace path.
+
+[Q-16] ANSWER KEY:
+  Volatile virtual memory workspace loading patterns (`tmpfs`), separating transient analysis routines from local root filesystems.
+
+[Q-17] ANSWER KEY:
+  Compute utilization bounds, memory usage curves, staging environment cost charts, and direct monthly cloud provider billing matrices.
+
+[Q-18] ANSWER KEY:
+  A distinct structured log block matching the pattern: `(Scenario ID | Vector Vector | Failure State Achieved | Proof Concept Input)`.
+
+[Q-19] ANSWER KEY:
+  SOC2 Type II security control matrices and ISO 27001 operational regulatory framework profiles.
+
+[Q-20] ANSWER KEY:
+  The Tester Agent configuration file (`tester_agent_spec.md`), which mandates generating mock components and synthetic endpoints to track interface consistency.
+
+[Q-21] ANSWER KEY:
+  The application performance SLA constraints mapped within the requirements tracking index, validating that runtime durations do not breach operational limits.
+
+[Q-22] ANSWER KEY:
+  The code must be completely encapsulated within markdown code blocks containing the accurate language syntax formatting tags.
+
+[Q-23] ANSWER KEY:
+  The Code Challenger Agent (AGENT-CHA-05), which identifies logical race boundaries, buffer limits, and off-by-one index anomalies.
+
+[Q-24] ANSWER KEY:
+  The structural headings required are: `## 1. Static Analysis Signature Summary`, `## 2. Vulnerability Map & Anti-Patterns`, and `## 3. Structural Complexity Scoring Metrics`.
+
+[Q-25] ANSWER KEY:
+  System throughput metrics, maximum API response latencies, data transit encryption patterns, and endpoint tracking endpoints.
+
+[Q-26] ANSWER KEY:
+  The Code Analysis Agent (AGENT-ANA-02). This verification step runs inside section 2: `## 2. Vulnerability Map & Anti-Patterns`.
+
+[Q-27] ANSWER KEY:
+  By parsing physical cluster profiles, core availability allocations, and memory capacity limits to match execution patterns against cost profiles.
+
+[Q-28] ANSWER KEY:
+  Commit messages must be checked against Conventional Commit specification schemas (e.g., matching prefixes like `feat:`, `fix:`).
+
+[Q-29] ANSWER KEY:
+  The Code Implementation Agent (AGENT-IMP-04), which requires embedding clear trace checkpoints at every key logic split inside components.
+
+[Q-30] ANSWER KEY:
+  Ingestion -> AGENT-REQ-01 (Requirements) -> AGENT-INT-03 (Interpretation) -> AGENT-IMP-04 (Implementation) -> AGENT-ANA-02 (Analysis) -> AGENT-CHA-05 (Challenger) -> AGENT-TST-08 (Testing) -> AGENT-EST-06 (Estimation) -> AGENT-REV-07 (Final Review/Approval).

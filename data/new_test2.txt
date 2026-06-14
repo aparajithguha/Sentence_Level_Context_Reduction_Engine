@@ -1,0 +1,18 @@
+Goal:
+Build offline email agent
+
+Requirements:
+LangGraph
+Ollama
+
+Constraint:
+No cloud APIs
+
+Decision:
+Use local LLMs
+
+Reason:
+Privacy
+
+Future Action:
+Benchmark ChromaDB and Qdrant
