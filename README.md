@@ -2,30 +2,30 @@
 
 [![Python Version](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Status](https://img.shields.io/badge/status-Experimental-orange)](README.md)
+[![Status](https://img.shields.io/badge/status-Research--Grade-purple)](README.md)
+[![Benchmark](https://img.shields.io/badge/SPS-84.36%25-brightgreen)](tests/benchmark_results.json)
+[![Docs](https://img.shields.io/badge/docs-SCRE--Deep--Dive-blue)](SCRE_DEEPDIVE.html)
 
-> **⚠️ DISCLAIMER:** SCRE is currently an **experimental package** in active development. Internal APIs (especially semantic extraction strategies) may change rapidly. It is not yet recommended for mission-critical production workloads without thorough evaluation.
+> **ℹ️ STATUS:** SCRE is a **research-grade, benchmark-validated** library under active development (75-doc evaluation, 100 Q&A pairs, SPS 84.36). Core APIs (`ingest`, `retrieve`, `reduce`) are stable. The extraction strategy chain and scoring weights are subject to change. **Not recommended for mission-critical production workloads** without independent evaluation on your target domain.
+
+---
 
 ## 📖 Overview
 
-**SCRE** (Sentence-level Context Reduction Engine) is a query-aware context compression library designed for Retrieval-Augmented Generation (RAG) pipelines. It intelligently reduces retrieved context to the *exact sentences* needed to answer a query while preserving critical reasoning chains, constraints, and narrative flow.
+**SCRE** (Sentence-level Context Reduction Engine) is a query-aware context compression library built for Retrieval-Augmented Generation (RAG) pipelines and LLM serving systems. It is **not** a traditional vector search or BM25 retriever — it reasons about *semantic structure* and compresses documents while preserving the logical, causal, and procedural relationships that matter to your query.
 
 ### The Problem
 
-Modern LLMs have massive context windows, but stuffing them with unrefined documents is counterproductive:
-- 📈 **Increased Latency** - Longer context = slower responses
-- 💸 **Higher API Costs** - Pay by token count
-- 🤔 **Lost-in-the-Middle** - LLMs lose focus with irrelevant information
+Modern LLMs have massive context windows, but stuffing them with raw documents is counterproductive:
 
-SCRE sits between your vector database and your LLM, acting as an intelligent compression layer.
+- 📈 **Increased Latency** — Longer context = slower generation
+- 💸 **Higher API Costs** — Every token costs money
+- 🤔 **Lost-in-the-Middle** — LLMs lose focus when surrounded by noise
+- 🔗 **Broken Reasoning Chains** — Naive retrieval breaks causal links
 
-### The Solution
+SCRE sits between your retrieval layer and your LLM, acting as an intelligent semantic compression filter.
 
-SCRE's hybrid approach combines:
-- **Dense semantic embeddings** for deep meaning
-- **Sparse lexical matching** for exact terms
-- **Entity recognition** for relationship preservation
-- **Graph-based reasoning** for chain-of-thought
+> 💡 **See it in action:** [WORKFLOW_EXAMPLE.md](WORKFLOW_EXAMPLE.md) walks through the same document and query across all four strategies — Raw Context, BM25, Vector Search, and SCRE — showing exactly what each retrieves and why.
 
 ---
 
@@ -38,110 +38,164 @@ graph TB
     C[Semantic Unit Extraction]
     D[Knowledge Graph Construction]
     E[Reasoning Graph Construction]
-    F[User Query]
-    G[Query-Aware Scoring Engine]
-    H[Hybrid Scoring Algorithm]
-    I[Context Expansion & Selection]
-    J[De-duplication & Ordering]
-    K[Final Reduced Context]
-    L[LLM Answer Generation]
-    
-    A --> B
-    B --> C
+    F[Dense Embeddings - all-MiniLM-L6-v2]
+    G[User Query]
+    H[Query-Aware Hybrid Scoring Engine]
+    I[Top-K Unit Selection]
+    J[Reasoning Chain Expansion]
+    K[Adjacent Context Expansion]
+    L[De-duplication & Ordering]
+    M[Final Reduced Context]
+    N[LLM Answer Generation]
+
+    A --> B --> C
     C --> D
     C --> E
-    F --> G
-    D --> G
-    E --> G
+    C --> F
     G --> H
+    D --> H
+    E --> H
+    F --> H
     H --> I
     I --> J
     J --> K
     K --> L
-    
-    
+    L --> M --> N
 ```
 
 ---
 
 ## ⚙️ Pipeline Stages
 
-The SCRE pipeline executes in six distinct stages when `engine.reduce()` is called:
+SCRE executes in **six distinct stages** on every `ingest()` + `retrieve()` call:
 
-### 1️⃣ **Ingestion & Intelligent Parsing**
-- Raw text is segmented into sentences
-- Preserves complex structures: markdown lists, headers, key-value pairs
-- Maintains narrative context by avoiding sentence fragmentation
+### 1️⃣ Ingestion & Intelligent Parsing
+- Raw text is split into semantic paragraphs and individual sentences
+- Preserves complex structures: markdown lists, key-value headers, code blocks
+- Detects and consolidates multi-line `Label:\nValue` patterns to prevent fragmentation
+- Maintains narrative context across sentence boundaries
 
-### 2️⃣ **Semantic Unit Classification**
-- Each sentence is classified into semantic types:
-  - `decision` - Important choices or selections
-  - `constraint` - Limitations or requirements
-  - `workflow` - Process steps or procedures
-  - `fact` - Factual information or definitions
-  - `reasoning` - Causal relationships
-- Uses a two-stage approach: regex patterns for structured data, spaCy NLP as fallback
+### 2️⃣ Semantic Unit Classification
+Each sentence is classified into one of the following semantic types using a **two-stage strategy pipeline**:
 
-### 3️⃣ **Dual Graph Construction**
-- **Knowledge Graph**: Connects entities (subjects/objects) to track relationships
-- **Reasoning Graph**: Links causal steps to preserve decision chains
+| Type | Description | Example Signal |
+|------|-------------|----------------|
+| `decision` | Critical choices or selections | "chose", "decided", "selected" |
+| `constraint` | Requirements or limitations | "must", "cannot", "required" |
+| `workflow` | Ordered process steps | Markdown list following a header |
+| `fact` | Definitions or factual statements | Default fallback |
+| `reason` | Causal or justification statements | "because", "due to", "enables" |
+| `goal` | Purpose or mission statements | "goal", "protect", "preserve" |
+| `task` | Action items or TODOs | "implement", "create", "benchmark" |
+| `outcome` | Results or consequences | "caused", "resulted", "outcome" |
+| `comparison` | Trade-off or contrast | "versus", "faster than", "better" |
 
-### 4️⃣ **Query-Aware Hybrid Scoring**
-Each semantic unit is scored against the query using:
-- **Dense Similarity** (BERT/MPNet embeddings)
-- **Sparse Lexical Similarity** (IDF-weighted term overlap)
-- **Entity Matching** (Named entities and noun chunks)
-- **Structural Bonuses** (e.g., boost `workflow` for "how-to" questions)
+**Extraction Strategy Chain:**
+1. Regex-based SDLC tag matcher (`[DEC-01]`, `[CON-02]`, etc.)
+2. Markdown key-value extractor (`Requirement: ...`, `Decision: ...`)
+3. spaCy NLP dependency parser (POS tagging, named entity recognition, subtrees)
 
-### 5️⃣ **Context Expansion**
-Selected sentences are expanded to include:
-- **Adjacent Context** (`context_window`) - Resolve pronouns and local references
-- **Reasoning Chains** - Traverse the reasoning graph for related causes/outcomes
+### 3️⃣ Dual Graph Construction
 
-### 6️⃣ **Final Assembly**
-- De-duplicate sentences
-- Maintain logical order
-- Generate clean context block with compression metrics
+**Knowledge Graph** — Entity adjacency list:
+- Connects subjects and objects across semantic units
+- Powers connectivity scoring: units with high entity co-occurrence are ranked higher
+
+**Reasoning Graph** — Causal chain graph:
+- Links `decision → constraint`, `reason → decision`, `task → goal` etc.
+- Detects lexical causal markers: `because`, `due to`, `depends on`, `satisfies`, `violates`
+- Enables **multi-hop traversal** during retrieval
+
+### 4️⃣ Query-Aware Hybrid Scoring
+Each semantic unit is scored against the incoming query using a **composite formula**:
+
+```
+score = (type_weight × 2.0)
+      + lexical_similarity   # IDF-weighted term overlap, non-linear multi-term boost
+      + phrase_bonus         # +5.0 for exact phrase match
+      + dense_bonus          # cosine similarity × [2–12] depending on confidence tier
+      + entity_match         # +3.0 per named entity match
+      + noun_match           # +2.0 per noun chunk match
+      + relationship_dist    # graph connectivity bonus (capped at 1.0)
+      + intent_bonus         # +3.0 when unit type aligns with query intent
+      + hard_id_boost        # +15.0 per exact alphanumeric identifier match
+```
+
+Dense embeddings use `all-MiniLM-L6-v2` (fast inference, high quality). The evaluation suite uses `all-mpnet-base-v2` for stricter semantic similarity verification at `threshold ≥ 0.80`.
+
+### 5️⃣ Context Expansion
+After top-K selection, SCRE expands the result set:
+
+- **Adjacent Context Expansion** (`context_window`) — Includes ±N neighbouring sentences to resolve pronouns and preserve local coherence
+- **Reasoning Chain Expansion** — Performs 2-hop traversal on the reasoning graph to pull in causes and consequences of selected nodes
+
+### 6️⃣ Final Assembly
+- De-duplicates by Jaccard similarity (threshold 0.85)
+- Re-orders by original sentence index to maintain narrative flow
+- Injects context headers (`[Section Title]`) to prevent context detachment
+- Returns clean context block + compression metrics
 
 ---
 
-## 📊 Workflow Diagram
+## 📊 Benchmark Results
 
-```mermaid
-sequenceDiagram
-    actor User
-    participant SCRE as SCRE Engine
-    participant Reducer as Query-Aware Reducer
-    participant Scorer as Scoring Module
-    participant Graph as Graph Engine
-    participant Embedder as Embedding Model
-    
-    User->>SCRE: reduce(text, query)
-    SCRE->>Reducer: Parse & Segment
-    Reducer->>Reducer: Extract Semantic Units
-    Reducer->>Graph: Build Knowledge Graph
-    Reducer->>Graph: Build Reasoning Graph
-    SCRE->>Embedder: Embed Query
-    SCRE->>Embedder: Embed All Sentences
-    SCRE->>Scorer: Score Units Against Query
-    Scorer->>Scorer: Compute Hybrid Score
-    Scorer->>SCRE: Top-K Sentences
-    SCRE->>Graph: Expand via Graphs
-    SCRE->>Reducer: Assemble & De-dup
-    Reducer->>SCRE: Final Context + Metrics
-    SCRE->>User: Compressed Context & Stats
+### Evaluation Setup
+
+| Parameter | Value |
+|-----------|-------|
+| **Dataset** | 75 documents (25 Kubernetes KEPs + 50 IETF RFCs) |
+| **Q&A Pairs** | 100 (2 per KEP, 1 per RFC) |
+| **Embedding Model** | `all-mpnet-base-v2` |
+| **Similarity Threshold** | ≥ 0.80 cosine similarity |
+| **Benchmark Script** | `tests/unified_benchmark.py` |
+| **Document Selection** | Only documents with Summary + Motivation + Design + Alternatives + Constraints + Reasoning sections |
+
+### Strategy Comparison
+
+| Metric | Raw Context | BM25 | Vector Search | **SCRE** |
+|--------|:-----------:|:----:|:-------------:|:--------:|
+| **SPS Score** | 97.40 | 76.53 | 77.32 | **84.36** |
+| **Constraint Recall** | 97.0% | 76.0% | 77.3% | **82.8%** |
+| **Decision Traceability** | 96.7% | 77.2% | 77.7% | **85.8%** |
+| **Workflow Integrity** | 98.3% | 76.3% | 77.0% | **83.7%** |
+| **Reasoning Recall** | 100.0% | 100.0% | 100.0% | **100.0%** |
+| **Reasoning Graph Recall** | 100.0% | 0.04% | 0.02% | **12.45%** |
+| **Dependency Recall** | 100.0% | 0.0% | 0.04% | **0.0%** |
+| **Compression Ratio** | 0.0% | 96.0% | 96.1% | **80.5%** |
+| **Avg Context Tokens** | 5,796 | 92 | 90 | **518** |
+| **Latency (ms)** | 0.004 | 0.86 | 58.70 | **62.58** |
+| **SER (Score/Token)** | 182 | 7,653 | 7,732 | **1,764** |
+
+### Key Findings
+
+- **SCRE preserves 84.36% of the semantic properties** of source documents while compressing **80.5% of token volume**
+- **BM25 and Vector Search destroy reasoning graph structure** — Reasoning Graph Recall drops to near 0% because they return disconnected sentences without traversing causal chains
+- **SCRE's Decision Traceability (85.8%)** exceeds both baselines by ~8.6pp — it follows decision-reason-implementation chains
+- **Raw Context scores 97.4 SPS** but at 5,796 avg tokens, it provides no compression benefit
+
+### SPS Formula
+
+```
+SPS = (reasoning_recall × 0.30)
+    + (constraint_recall × 0.25)
+    + (decision_traceability × 0.20)
+    + (workflow_integrity × 0.15)
+    + (general_retention × 0.10)
+    × 100
 ```
 
 ---
 
 ## 📦 Installation
 
-### Method 1: From Source (Development)
+### From Source (Development)
 
 ```bash
-# Clone the repository
 git clone https://github.com/aparajithguha/Sentence_Level_Context_Reduction_Engine.git
-cd scre
+cd Sentence_Level_Context_Reduction_Engine
+
+# Create virtual environment
+python -m venv venv && source venv/bin/activate
 
 # Install in editable mode with all dependencies
 pip install -e .[all]
@@ -150,28 +204,18 @@ pip install -e .[all]
 python -m spacy download en_core_web_sm
 ```
 
-### Method 2: Minimal Installation
-
-```bash
-# Core dependencies only
-pip install -e .
-
-# Optional: Add specific feature groups
-pip install -e ".[ml]"      # Add ML/embedding support
-pip install -e ".[llm]"     # Add LLM/Ollama support
-pip install -e ".[eval]"    # Add evaluation/BM25 support
-```
-
 ### Dependencies
 
 | Component | Package | Purpose |
 |-----------|---------|---------|
-| **Core** | spacy≥3.0.0 | NLP & entity recognition |
-| **ML** | sentence-transformers | Dense embeddings |
-| | torch | Deep learning backend |
-| | tiktoken | Token counting |
-| **LLM** | ollama | Local LLM inference |
-| **Eval** | rank_bm25 | Baseline comparison |
+| **Core** | `spacy≥3.0.0` | NLP, entity recognition, POS tagging |
+| **ML** | `sentence-transformers` | Dense semantic embeddings |
+| | `torch` | Deep learning backend |
+| | `tiktoken` | Accurate token counting (cl100k_base) |
+| **Dashboard** | `streamlit` | Interactive evaluation UI |
+| | `plotly` | Radar charts and network graphs |
+| | `networkx` | Graph layout and visualization |
+| **Eval** | `rank_bm25` | BM25 baseline comparisons |
 
 ---
 
@@ -182,301 +226,197 @@ pip install -e ".[eval]"    # Add evaluation/BM25 support
 ```python
 from scre.query_aware_reducer import SCRE
 
-# Initialize the engine
 engine = SCRE()
 
 document_text = """
-John owns Project Phoenix. Sarah manages Project Phoenix.
-Mike tests Project Phoenix. David deploys Project Phoenix.
 The database chosen was PostgreSQL. It was selected because of its ACID compliance.
+All writes must use transactions. Reads can use connection pooling.
+The team decided to use read replicas for analytics workloads.
 """
 
-query = "Why did we select PostgreSQL?"
-
-# Reduce context intelligently
 result = engine.reduce(
     text=document_text,
-    query=query,
-    max_sentences=2,
+    query="Why did we select PostgreSQL?",
+    max_sentences=3,
     context_window=1
 )
 
-print("Reduced Context:")
 print(result["context"])
-
-print("\nMetrics:")
-print(f"Reduction Ratio: {result['metadata']['reduction_ratio']:.2%}")
-print(f"Estimated Tokens: {result['metadata']['reduced_estimated_tokens']}")
+print(f"Compressed: {result['metadata']['reduction_ratio']:.1%}")
+print(f"Tokens: {result['metadata']['reduced_estimated_tokens']}")
 ```
 
-### Full Pipeline with Answer Generation
+### Ingest-then-Retrieve (Persistent Mode)
 
 ```python
-from scre.scre_pipeline import run_scre
+from scre.query_aware_reducer import SCRE
 
-result = run_scre(
-    document_text=document_text,
-    user_question="Why was PostgreSQL selected?",
-    max_sentences=3,
-    context_window=1,
-    answer_mode="ollama",
-    model_name="gemma4:e2b"
-)
+# Persistent SQLite-backed engine (survives across queries)
+engine = SCRE(db_path="scre_memory.db")
 
-print("Question:", result["question"])
-print("Reduced Context:", result["reduced_context"])
-print("Answer:", result["answer"])
-print("Compression:", f"{result['metrics']['reduction_ratio']:.2%}")
+# Ingest once
+engine.ingest(document_text, document_id="postgres-adr-2024")
+
+# Retrieve multiple times with different queries
+r1 = engine.retrieve("Why PostgreSQL?", document_id="postgres-adr-2024", max_sentences=4)
+r2 = engine.retrieve("What are the constraints?", document_id="postgres-adr-2024", max_sentences=4)
 ```
 
 ---
 
-## 📊 Benchmarking & Performance
+## 🖥️ Interactive Dashboard
 
-SCRE includes a comprehensive benchmarking framework (`tests/benchmark_v2.py`) that evaluates:
-
-### Metrics Tracked
-
-| Metric | Description |
-|--------|-------------|
-| **Exact Match** | Percentage of queries answered exactly |
-| **F1 Score** | Precision-recall balance on answer correctness |
-| **Semantic Similarity** | How semantically similar is reduced context to original |
-| **Answer Consistency** | Does reduced context yield same answer as full context? |
-| **Latency** | Time to perform reduction |
-| **Compression Ratio** | Percentage of tokens removed |
-| **Cost Savings** | Estimated API cost reduction |
-
-### Running Benchmarks
+SCRE ships with a research-grade Streamlit dashboard for exploration and evaluation:
 
 ```bash
-# Run full benchmark suite
-python tests/benchmark_v2.py
-
-# View historical trends
-cat tests/scre_benchmark_history.json
+streamlit run dashboard.py
 ```
 
-### Latest Performance Results
+**Dashboard Tabs:**
+1. **📊 Performance Dashboard** — Full benchmark results table + radar chart comparison
+2. **🔌 Graph Explorer** — Interactive network graph of reasoning edges per document
+3. **🛝 Playground & Comparison** — Side-by-side BM25 vs Vector vs SCRE retrieval for any document/query pair
 
-| Strategy | Exact Match | F1 Score | Consistency | Compression |
-|----------|------------|----------|-------------|------------|
-| Raw Context | 75.0% | 0.30 | 0% | 0% |
-| BM25 | 12.5% | 0.03 | 31.6% | 83.8% |
-| Vector Search | 75.0% | 0.29 | 83.5% | 84.0% |
-| **SCRE** | **62.5%** | **0.17** | **90.1%** | **50.5%** |
+---
+
+## 🧪 Running Benchmarks
+
+```bash
+# Full evaluation suite (75 docs, 100 Q&As)
+python tests/unified_benchmark.py
+
+# View results
+cat tests/benchmark_results.json
+
+# Launch dashboard
+streamlit run dashboard.py
+```
 
 ---
 
 ## 🗂️ Project Structure
 
 ```
-scre/
-├── __init__.py                      # Package entry point
-├── query_aware_reducer.py           # Main SCRE engine & scoring logic
-├── scre_pipeline.py                 # Full pipeline orchestration
-└── scre_answer_engine.py            # LLM integration for answer generation
-
-tests/
-├── benchmark_v2.py                  # Comprehensive performance benchmarks
-├── scre_benchmark_history.json      # Historical benchmark trends
-├── qa_dataset.py                    # QA dataset utilities
-├── scre_eval.py                     # Evaluation metrics
-├── test_scre_story.py               # Integration tests
-├── check_reduction.py               # Reduction analysis
-└── verify_ollama.py                 # Ollama connectivity check
-
-data/
-├── *_agent.md                       # Agent prompt templates
-├── bench_*.txt                      # Benchmark datasets
-├── requirements.txt                 # Legacy requirements
-└── requirements/                    # Data assets
-
-pyproject.toml                        # Modern project configuration
-README.md                             # This file
-BENCHMARK_REPORT.md                  # Auto-generated benchmark report
+SCRE/
+├── scre/
+│   ├── query_aware_reducer.py      # Core engine: parsing, graphs, scoring, retrieval
+│   ├── scre_pipeline.py            # End-to-end pipeline (ingest → reduce → answer)
+│   └── scre_answer_engine.py       # LLM integration (Ollama)
+│
+├── tests/
+│   ├── unified_benchmark.py        # Research-grade evaluation suite (75 docs, 100 Q&As)
+│   ├── benchmark_results.json      # Latest benchmark output
+│   ├── benchmark_results.csv       # CSV export for analysis
+│   └── benchmark_history.json      # Run history
+│
+├── data/                           # Benchmark corpora & agent prompt templates
+├── dashboard.py                    # Streamlit interactive dashboard
+├── WORKFLOW_EXAMPLE.md             # Step-by-step retrieval comparison walkthrough
+├── SCRE_DEEPDIVE.html              # Full technical deep-dive document
+└── pyproject.toml                  # Project configuration
 ```
 
 ---
 
-## 🔍 Key Components
+## 🔧 Configuration
 
-### `SCRE` (query_aware_reducer.py)
-The main engine class. Handles document parsing, semantic extraction, graph construction, and query-aware scoring.
+### SCRE Constructor
 
-**Key Methods:**
-- `reduce(text, query, max_sentences, context_window)` - Main entry point
-- `_extract_semantic_units(sentences)` - Classifies sentences
-- `_build_knowledge_graph(units)` - Constructs entity graph
-- `_score_units(query, units)` - Computes hybrid scores
+```python
+engine = SCRE(
+    model="en_core_web_sm",   # spaCy model for NLP
+    db_path=":memory:",        # SQLite path — use file path for persistence
+    extractors=[...]           # Optional: custom extraction strategy chain
+)
+```
 
-### `Answer Engine` (scre_answer_engine.py)
-Integrates with local LLMs (Ollama) to generate answers from reduced context.
+### Retrieve Parameters
 
-**Features:**
-- Multiple model support
-- Fallback handling
-- Streaming response support
+```python
+result = engine.retrieve(
+    query="...",
+    document_id="...",
+    max_sentences=6,       # Max semantic units to select
+    context_window=1,      # Adjacent sentence expansion radius
+    min_tokens=250,        # Minimum token floor (prevents under-retrieval)
+    max_tokens=None        # Optional hard token ceiling
+)
+```
 
-### `Pipeline Orchestrator` (scre_pipeline.py)
-End-to-end workflow combining reduction and answer generation.
+### Return Schema
+
+```python
+{
+    "context": "...",          # The compressed context string
+    "metadata": {
+        "original_sentences": 660,
+        "reduced_sentences": 15,
+        "original_chars": 45769,
+        "reduced_chars": 3641,
+        "original_estimated_tokens": 10325,
+        "reduced_estimated_tokens": 877,
+        "reduction_ratio": 0.9204
+    }
+}
+```
 
 ---
 
 ## 🎯 Use Cases
 
-### 1. **RAG Optimization**
-Reduce retrieved context before sending to LLM for faster, cheaper responses.
-
+### RAG Pipeline Compression
 ```python
-# In your RAG pipeline
 retrieved_docs = vector_db.search(query, top_k=10)
 full_context = "\n".join(retrieved_docs)
 
-# Compress intelligently
-reduced = engine.reduce(full_context, query, max_sentences=5)
-answer = llm.query(query, context=reduced["context"])
+compressed = engine.reduce(full_context, query, max_sentences=5)
+answer = llm.chat(query, context=compressed["context"])
 ```
 
-### 2. **Cost-Aware Deployment**
-Control token usage and API costs in production.
-
+### Cost-Aware Production Serving
 ```python
-result = engine.reduce(
-    text=documents,
-    query=user_query,
-    max_sentences=3
-)
-
-cost = result["metadata"]["cost_savings"]
-print(f"API cost reduced by {cost}")
+result = engine.reduce(text=raw_doc, query=user_query, max_sentences=3)
+token_savings = (result["metadata"]["original_estimated_tokens"]
+                 - result["metadata"]["reduced_estimated_tokens"])
+print(f"Saved {token_savings} tokens (~${token_savings * 0.000003:.4f} at GPT-4 pricing)")
 ```
-
-### 3. **Question Answering at Scale**
-Batch process QA tasks efficiently.
-
-```python
-for qa_pair in qa_dataset:
-    result = run_scre(
-        document_text=qa_pair["context"],
-        user_question=qa_pair["question"]
-    )
-```
-
----
-
-## 🧪 Testing
-
-### Run Unit Tests
-```bash
-pytest tests/ -v
-```
-
-### Run Benchmarks
-```bash
-python tests/benchmark_v2.py
-```
-
-### Check Ollama Integration
-```bash
-python tests/verify_ollama.py
-```
-
-### Analyze Reduction Quality
-```bash
-python tests/check_reduction.py
-```
-
----
-
-## 🔧 Configuration & Advanced Usage
-
-### Custom Scoring Parameters
-
-```python
-engine = SCRE()
-
-result = engine.reduce(
-    text=document_text,
-    query=query,
-    max_sentences=5,           # Max final sentences
-    context_window=2,          # Adjacent context radius
-    dense_weight=0.6,          # Weight for semantic similarity
-    sparse_weight=0.4,         # Weight for lexical matching
-)
-```
-
-### Semantic Unit Types
-
-The engine recognizes these semantic categories:
-- **decision** - Critical choices
-- **constraint** - Requirements/limitations
-- **workflow** - Process steps
-- **fact** - Definitions/information
-- **reasoning** - Causal chains
-
----
-
-## 📈 Performance Tips
-
-1. **Tune `max_sentences`** - Start with 3-5, adjust based on answer quality
-2. **Use `context_window`** - Set to 1-2 for coherence without bloat
-3. **Batch Processing** - Initialize engine once, reuse across multiple queries
-4. **Monitor Metrics** - Track `reduction_ratio` and `answer_consistency`
-5. **Combine with BM25** - Use BM25 for sparse retrieval, SCRE for refinement
 
 ---
 
 ## 🚀 Roadmap
 
-- [ ] Multi-language support
-- [ ] Custom semantic unit types
-- [ ] Graph-based reasoning expansion improvements
-- [ ] Fine-tuned embedding models
+- [x] Semantic unit extraction with type classification
+- [x] Dual-graph construction (Knowledge + Reasoning)
+- [x] Dense + sparse hybrid scoring
+- [x] Reasoning chain multi-hop expansion
+- [x] Persistent SQLite-backed memory store
+- [x] Research-grade benchmark suite (75 docs, 100 Q&As)
+- [x] Interactive Streamlit dashboard with graph explorer
+- [ ] LangChain / LlamaIndex retriever integration
+- [ ] Multi-language support (multilingual MiniLM)
 - [ ] Streaming context expansion
-- [ ] Interactive UI for compression visualization
-- [ ] Production monitoring dashboards
+- [ ] Fine-tuned domain-specific extraction models
+- [ ] Production monitoring & observability hooks
+
+---
+
+## 📚 Documentation
+
+| Document | Description |
+|----------|-------------|
+| [README.md](README.md) | This file — project overview and quick start |
+| [WORKFLOW_EXAMPLE.md](WORKFLOW_EXAMPLE.md) | Step-by-step retrieval comparison (Raw vs BM25 vs Vector vs SCRE) |
+| [SCRE_DEEPDIVE.html](SCRE_DEEPDIVE.html) | Full technical architecture, scoring formula, and benchmark analysis |
+| [BENCHMARK_REPORT.md](BENCHMARK_REPORT.md) | Auto-generated benchmark narrative report |
 
 ---
 
 ## 📝 License
 
-MIT License - see LICENSE file for details.
+MIT License — see [LICENSE](LICENSE) for details.
 
 ---
-
-## 👨‍💻 Contributing
-
-We welcome contributions! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new functionality
-4. Submit a pull request
-
----
-
 
 ## 🙏 Acknowledgments
 
-Built with:
-- spaCy for NLP
-- Sentence-Transformers for embeddings
-- Ollama for local LLM inference
-
-**Run the benchmark:**
-```bash
-python tests/benchmark_v2.py
-```
-*(Results are automatically tracked historically in `BENCHMARK_REPORT.md`)*
----
-
-## 🤝 Current Direction
-
-SCRE has evolved from a naive triple-extraction prototype to a fully mature **query-conditioned reduction** engine. Future roadmaps include:
-* Native LangChain and LlamaIndex retriever abstractions.
-* Distributed SQLite optimizations for massive batch processing.
-* Deep integration with structured JSON/Markdown formats (Workflows, SDLC formats).
-* This repo no longer uses the older graph/triple compression prototype.
-* The working direction is query-conditioned reduction, because token savings only
-* matter if answer fidelity is preserved for a specific ask.
-
+Built with [spaCy](https://spacy.io/), [Sentence-Transformers](https://www.sbert.net/), [Streamlit](https://streamlit.io/), [Plotly](https://plotly.com/), and [NetworkX](https://networkx.org/).
