@@ -397,6 +397,19 @@ Sentences selected: 11 of 26
 
 ## 📊 Side-by-Side Comparison
 
+> **New to these metrics?** Quick reference below — full definitions in [README.md](README.md).
+
+| Metric | What it measures |
+|--------|-----------------|
+| **Tokens** | How many tokens get sent to the LLM. Fewer = cheaper and faster, but only if semantics are preserved. |
+| **Decision sentence** | Did the strategy find the sentence that states the actual choice made? |
+| **Write constraints** | Did it find the hard operational rules (`must use LOCAL_QUORUM`)? |
+| **Min 3 nodes constraint** | Did it find a *secondary* constraint not directly mentioned in the query? |
+| **Performance evidence** | Did it find the *justification* (benchmark numbers) for the decision? |
+| **P99 latency justification** | Did it find the latency proof that supported the decision? |
+| **Reasoning chain intact** | Are cause and effect sentences both present together, not just isolated facts? |
+| **Noise** | Are irrelevant sections (Background, Non-Goals) included in what gets sent to the LLM? |
+
 | | Raw Context | BM25 | Vector Search | **SCRE** |
 |--|:-----------:|:----:|:-------------:|:--------:|
 | **Tokens** | 450 | 98 | 75 | 210 |
@@ -423,12 +436,15 @@ The critical difference for this query:
 > SCRE retrieves it via the **reasoning graph** — it is causally linked to the decision sentence (sentence 15 has a `because` causal marker that points back to the outcome sentences 11, 12). The 2-hop traversal picks it up even though it wouldn't score well on its own.
 
 This is exactly what the **Reasoning Graph Recall** metric measures:
+> *"Are cause and effect sentences both present together in the retrieved context?"*
 
 | Strategy | Reasoning Graph Recall |
 |----------|----------------------:|
 | BM25 | 0.04% |
 | Vector Search | 0.02% |
 | **SCRE** | **12.45%** |
+
+**On the SPS weights:** The formula weights `(0.30, 0.25, 0.20, 0.15, 0.10)` are intentional design choices — not optimised from data. Reasoning gets the highest weight (0.30) because dropping *why* a decision was made is the most damaging failure mode for an LLM answering "explain this choice" questions. Constraints get 0.25 because missing hard rules can produce factually wrong outputs. General retention gets just 0.10 because that is what keyword retrieval already does well — it is the least differentiating dimension.
 
 ---
 

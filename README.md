@@ -150,6 +150,22 @@ After top-K selection, SCRE expands the result set:
 | **Benchmark Script** | `tests/unified_benchmark.py` |
 | **Document Selection** | Only documents with Summary + Motivation + Design + Alternatives + Constraints + Reasoning sections |
 
+### What Each Metric Means
+
+| Metric | One-liner |
+|--------|-----------|
+| **SPS Score** | *Composite score (0–100) combining all metrics below using weighted priorities. The headline number for comparing strategies.* |
+| **Constraint Recall** | *Did the retrieved context preserve the rules and requirements? ("must", "cannot", "required" sentences)* |
+| **Decision Traceability** | *Did the retrieved context preserve the choices made and why they were made?* |
+| **Workflow Integrity** | *Did the retrieved context preserve process steps and procedural logic?* |
+| **Reasoning Recall** | *Did the retrieved context preserve the motivation and justification behind decisions?* |
+| **Reasoning Graph Recall** | *Did the retrieved context preserve causal chains — i.e. are cause and effect sentences both present together?* |
+| **Dependency Recall** | *Did the retrieved context preserve cross-document references and citations?* |
+| **Compression Ratio** | *What percentage of the original document was removed? Higher = fewer tokens sent to the LLM.* |
+| **Avg Context Tokens** | *Average token count of the retrieved context across all 100 test queries.* |
+| **Latency (ms)** | *Time to perform retrieval per query (excluding model loading).* |
+| **SER** | *Semantic Efficiency Ratio — SPS score per token. How much semantic value per token spent.* |
+
 ### Strategy Comparison
 
 | Metric | Raw Context | BM25 | Vector Search | **SCRE** |
@@ -183,6 +199,8 @@ SPS = (reasoning_recall × 0.30)
     + (general_retention × 0.10)
     × 100
 ```
+
+**Why these weights?** The weights are deliberate design choices reflecting what matters most in technical document RAG — they are not mathematically optimised. Reasoning (0.30) is weighted highest because a context that drops *why* a decision was made is misleading to an LLM. Constraints (0.25) are next because missing hard rules (`must`/`cannot`) can produce incorrect outputs. General factual retention (0.10) is lowest because that is what BM25 and Vector Search already do — it is the least differentiating capability. All weights sum to 1.0 and can be tuned per domain (e.g. a compliance use-case could raise constraints to 0.40).
 
 ---
 
