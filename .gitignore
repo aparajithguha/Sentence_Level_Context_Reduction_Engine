@@ -41,3 +41,14 @@ Thumbs.db
 .env
 *.log
 tests/scre_benchmark_history.json
+# Benchmark corpus (large, not committed)
+keps/
+rfcs-master/
+
+# Old benchmark history files
+tests/keps_benchmark_history.json
+tests/rfcs_benchmark_history.json
+tests/semantic_preservation_history.json
+
+# Scratch
+scratch/

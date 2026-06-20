@@ -570,10 +570,11 @@ class SCRE:
                 else:
                     current_h1 = clean_header
             
-            is_list_item = lambda t: bool(re.match(r'^\d+\.\s|^[\*\-]\s', t))
+            is_list_item = lambda t: bool(re.match(r'^\d+\.\s|^[\*\-]\s', t)) and not bool(re.match(r'^(?:-\s*)?\[[A-Z]+-\d+\]', t))
+            is_hr = lambda t: bool(re.match(r'^[-\*=_\s]{3,}$', t))
             
             # Workflow Detection: Header followed by ordered procedural steps
-            if i + 1 < len(sentences) and not is_list_item(text) and is_list_item(sentences[i+1].text.strip()):
+            if i + 1 < len(sentences) and not is_list_item(text) and not is_hr(text) and is_list_item(sentences[i+1].text.strip()):
                 header_text = text.rstrip(':').strip()
                 steps = []
                 j = i + 1
