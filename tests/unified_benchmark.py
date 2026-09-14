@@ -4,6 +4,7 @@ import json
 import time
 import re
 import csv
+import random
 from pathlib import Path
 from typing import Dict, List, Any, Tuple, Set
 
@@ -19,6 +20,80 @@ except ImportError:
     SentenceTransformer = None
     util = None
     torch = None
+
+try:
+    from llmlingua import PromptCompressor
+except ImportError:
+    PromptCompressor = None
+
+try:
+    import ollama
+except ImportError:
+    ollama = None
+
+# Target fraction of tokens LLMLingua-2 is asked to keep. Set to match the
+# average compression SCRE achieves on this same suite (see BENCHMARK_REPORT.md,
+# "SCRE Publishable Evaluation Suite" -- ~84% compression => ~16% kept), so
+# the two engines are compared at a comparable output budget rather than
+# whatever ratio LLMLingua's default happens to produce.
+LLMLINGUA_TARGET_RATE = 0.16
+
+# Local Ollama model backing the LangChain-style extraction baseline below --
+# already pulled for this project (see scre.scre_answer_engine), so this
+# strategy needs no additional download.
+LLM_EXTRACT_MODEL = "qwen3:4b-instruct-2507-q4_K_M"
+
+# Mirrors LangChain's default LLMChainExtractor prompt (the off-the-shelf
+# "industry default" compression approach): ask the LLM to copy out only the
+# verbatim spans relevant to the question, no paraphrasing, no commentary.
+LLM_EXTRACT_PROMPT = """Given the following question and context, extract any part of the context \
+*as is* that is relevant to answer the question. If none of the context is relevant, return "NO_OUTPUT".
+
+Remember, *DO NOT* edit the extracted parts of the context.
+
+> Question: {question}
+> Context:
+>>>
+{context}
+>>>
+Extracted relevant parts:"""
+
+
+# Cap on the raw document fed to the LLM-extraction baseline. A few RFC/KEP
+# documents run ~35-40k tokens, and pushing Ollama's context window that
+# high OOMs a 16GB M1 (the KV cache for a 4B model at num_ctx=65536 alone
+# exceeds available unified memory). Truncating is also the realistic
+# choice, not just a workaround: LangChain's ContextualCompressionRetriever
+# is normally run per-retrieved-chunk, not against a whole raw document --
+# no off-the-shelf deployment feeds a single LLM call 37k raw tokens either.
+LLM_EXTRACT_MAX_WORDS = 6000
+LLM_EXTRACT_NUM_CTX = 16384
+
+
+def llm_chain_extract(context: str, question: str, model_name: str = LLM_EXTRACT_MODEL) -> str:
+    """LangChain-style LLM extraction compression baseline.
+
+    Represents the default off-the-shelf RAG compression method (LangChain's
+    ``ContextualCompressionRetriever`` + ``LLMChainExtractor``): a single LLM
+    call asked to copy out only the question-relevant spans verbatim. Unlike
+    SCRE's structural extraction, the "what to keep" decision here is made
+    entirely by generative LLM inference.
+    """
+    if ollama is None:
+        return ""
+    words = context.split()
+    if len(words) > LLM_EXTRACT_MAX_WORDS:
+        context = " ".join(words[:LLM_EXTRACT_MAX_WORDS])
+    prompt = LLM_EXTRACT_PROMPT.format(question=question, context=context)
+    response = ollama.chat(
+        model=model_name,
+        messages=[{"role": "user", "content": prompt}],
+        options={"num_ctx": LLM_EXTRACT_NUM_CTX},
+    )
+    text = response["message"]["content"].strip()
+    if text.strip().upper() == "NO_OUTPUT":
+        return ""
+    return text
 
 from scre.query_aware_reducer import SCRE
 # extract_json_workflows now lives in scre.units (shared with
@@ -37,7 +112,22 @@ class UnifiedBenchmark:
         # Load high-quality Mpnet model as requested
         print("Loading all-mpnet-base-v2 model for semantic verification...")
         self.embedder = SentenceTransformer("all-mpnet-base-v2") if SentenceTransformer else None
-        
+
+        # Loading LLMLingua-2 requires a ~2.2GB HF download; skip it unless
+        # the checkpoint is already fully cached locally (os.environ escape
+        # hatch below) so a slow/stalled connection can't block this run --
+        # see the "F_LLMLingua2" strategy, appended only when this is set.
+        self.llmlingua = None
+        if PromptCompressor and os.environ.get("SCRE_LOAD_LLMLINGUA") == "1":
+            try:
+                print("Loading LLMLingua-2 compressor...")
+                self.llmlingua = PromptCompressor(
+                    model_name="microsoft/llmlingua-2-xlm-roberta-large-meetingbank",
+                    use_llmlingua2=True,
+                )
+            except Exception as e:
+                print(f"LLMLingua-2 unavailable ({e}); skipping that strategy.")
+
         self.dataset = []
         self.scre = SCRE()
         self._build_dataset()
@@ -366,10 +456,34 @@ class UnifiedBenchmark:
                     
         return preserved_count / len(orig_dependencies)
 
-    def run_benchmark(self, max_sentences=6):
-        print(f"Running Unified Publishable Evaluation Suite (max_sentences={max_sentences})...")
-        
+    def run_benchmark(self, max_sentences=6, sample_size=None, sample_seed=42):
+        """Run the evaluation suite.
+
+        Args:
+            max_sentences: Passed through to ``SCRE.reduce``.
+            sample_size: If set, evaluate a fixed-seed random subset of this
+                many Q&A pairs instead of the full dataset -- both fewer
+                strategy-evaluation calls per query AND fewer unique
+                documents to build BM25/vector/SCRE-analysis corpora for
+                (the dataset is ordered KEPs-then-RFCs, so a random sample
+                keeps both document types represented, unlike a naive
+                head-slice). Useful for strategies with per-call LLM latency
+                (see "E_LangChain_LLMExtract") where 100 calls is slow to
+                iterate on.
+            sample_seed: Fixed seed so the same subset is reproducible.
+        """
+        eval_dataset = self.dataset
+        if sample_size is not None and sample_size < len(self.dataset):
+            eval_dataset = random.Random(sample_seed).sample(self.dataset, sample_size)
+
+        print(f"Running Unified Publishable Evaluation Suite (max_sentences={max_sentences}, "
+              f"questions={len(eval_dataset)}/{len(self.dataset)})...")
+
         strategies = ["A_Raw_Context", "B_BM25", "C_Vector_Search", "D_SCRE"]
+        if ollama is not None:
+            strategies.append("E_LangChain_LLMExtract")
+        if self.llmlingua:
+            strategies.append("F_LLMLingua2")
         results = {}
         
         # Build cached corpora, including each document's SCRE analysis
@@ -378,7 +492,7 @@ class UnifiedBenchmark:
         # is what avoids re-parsing the same original document for every
         # query against it, same as the BM25/vector setup below.
         corpora = {}
-        for doc in self.dataset:
+        for doc in eval_dataset:
             doc_path = Path(doc["path"])
             doc_id = doc["doc_name"]
             if doc_id in corpora:
@@ -427,7 +541,7 @@ class UnifiedBenchmark:
             # Count elements that are not None for averaging
             counts = {k: 0 for k in metrics_sums.keys()}
             
-            for q in self.dataset:
+            for q in eval_dataset:
                 doc_id = q["doc_name"]
                 corpus = corpora[doc_id]
                 
@@ -450,7 +564,18 @@ class UnifiedBenchmark:
                 elif strategy == "D_SCRE":
                     res = self.scre.reduce(text=corpus["text"], query=q["question"], max_sentences=max_sentences, context_window=1)
                     retrieved_context = res["context"]
-                    
+                elif strategy == "E_LangChain_LLMExtract":
+                    retrieved_context = llm_chain_extract(corpus["text"], q["question"])
+                elif strategy == "F_LLMLingua2":
+                    if self.llmlingua:
+                        out = self.llmlingua.compress_prompt(
+                            corpus["text"],
+                            question=q["question"],
+                            rate=LLMLINGUA_TARGET_RATE,
+                        )
+                        retrieved_context = out["compressed_prompt"]
+
+
                 latency = (time.time() - start_time) * 1000
                 
                 # Tokens
@@ -532,17 +657,30 @@ class UnifiedBenchmark:
             
             results[strategy] = avg_metrics
 
-        self._save_results(results, csv_records)
+        is_sample = len(eval_dataset) < len(self.dataset)
+        n_docs = len({q["doc_name"] for q in eval_dataset})
+        self._save_results(results, csv_records, n_docs=n_docs, n_questions=len(eval_dataset), is_sample=is_sample)
         return results
 
-    def _save_results(self, results: Dict[str, Any], csv_records: List[Dict[str, Any]]):
+    def _save_results(self, results: Dict[str, Any], csv_records: List[Dict[str, Any]],
+                       n_docs: int, n_questions: int, is_sample: bool = False):
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-        
+
+        # Sampled runs (see run_benchmark's sample_size) write to separate
+        # *_sample.* files instead of overwriting the canonical 75-doc/
+        # 100-Q&A benchmark record -- a fast iteration run shouldn't corrupt
+        # the reference numbers other strategies are compared against.
+        suffix = "_sample" if is_sample else ""
+        report_file = "BENCHMARK_REPORT.md" if not is_sample else "BENCHMARK_REPORT_sample.md"
+        csv_file = f"tests/benchmark_results{suffix}.csv"
+        json_file = f"tests/benchmark_results{suffix}.json"
+        history_file = f"tests/benchmark_history{suffix}.json"
+
         # 1. Update BENCHMARK_REPORT.md
-        report_file = "BENCHMARK_REPORT.md"
+        heading = f"## 🏆 SCRE Publishable Evaluation Suite ({n_docs} Docs, {n_questions} Q&As)"
         markdown_snippet = f"""
-## 🏆 SCRE Publishable Evaluation Suite (75 Docs, 100 Q&As)
-*Defensible research-grade evaluation comparing raw proposal context, BM25 keyword matching, dense Vector Search, and the structural SCRE engine on semantic recall, graph paths, and step dependencies.*
+{heading}
+*Defensible research-grade evaluation comparing raw proposal context, BM25 keyword matching, dense Vector Search, LLM-extraction (LangChain-style), and the structural SCRE engine on semantic recall, graph paths, and step dependencies.*
 **Run Date:** {timestamp}
 
 | Strategy | SPS Score (0-100) | Constraint Recall | Decision Traceability | Workflow Integrity | Reasoning Recall | Reasoning Graph Recall | Dependency Recall | SER (Efficiency) | Compression | Latency |
@@ -555,7 +693,7 @@ class UnifiedBenchmark:
         original_content = ""
         if os.path.exists(report_file):
             original_content = Path(report_file).read_text(encoding="utf-8")
-            
+
         with open(report_file, "w") as f:
             if "## 🏆 SCRE Publishable Evaluation Suite" in original_content:
                 parts = original_content.split("## 🏆 SCRE Publishable Evaluation Suite")
@@ -563,23 +701,20 @@ class UnifiedBenchmark:
             else:
                 f.write(original_content.strip() + "\n\n")
             f.write(markdown_snippet)
-            
+
         # 2. Save CSV results
-        csv_file = "tests/benchmark_results.csv"
         if csv_records:
             keys = csv_records[0].keys()
             with open(csv_file, "w", newline="", encoding="utf-8") as f:
                 writer = csv.DictWriter(f, fieldnames=keys)
                 writer.writeheader()
                 writer.writerows(csv_records)
-                
+
         # 3. Save JSON results
-        json_file = "tests/benchmark_results.json"
         with open(json_file, "w") as f:
             json.dump(results, f, indent=4)
-            
+
         # 4. Update benchmark history
-        history_file = "tests/benchmark_history.json"
         history = []
         if os.path.exists(history_file):
             try:
@@ -588,11 +723,13 @@ class UnifiedBenchmark:
                 pass
         history.append({
             "timestamp": timestamp,
+            "n_docs": n_docs,
+            "n_questions": n_questions,
             "results": results
         })
         with open(history_file, "w") as f:
             json.dump(history, f, indent=4)
-            
+
         print(f"Results successfully written to:")
         print(f" - {report_file}")
         print(f" - {csv_file}")
@@ -601,4 +738,5 @@ class UnifiedBenchmark:
 
 if __name__ == "__main__":
     bench = UnifiedBenchmark()
-    bench.run_benchmark(max_sentences=6)
+    sample_size = int(os.environ.get("SCRE_BENCH_SAMPLE", "20"))
+    bench.run_benchmark(max_sentences=6, sample_size=sample_size)

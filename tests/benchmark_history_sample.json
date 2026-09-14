@@ -1,0 +1,79 @@
+[
+    {
+        "timestamp": "2026-09-14 20:52:40",
+        "n_docs": 19,
+        "n_questions": 20,
+        "results": {
+            "A_Raw_Context": {
+                "constraint_recall": 1.0,
+                "decision_traceability": 0.9667,
+                "workflow_integrity": 0.9833,
+                "reasoning_recall": 1.0,
+                "general_retention": 0.9333,
+                "reasoning_graph_recall": 1.0,
+                "dependency_recall": 1.0,
+                "compression_ratio": 0.0,
+                "context_size_tokens": 4953.0,
+                "latency_ms": 0.001,
+                "sps": 98.42,
+                "ser": 215.27
+            },
+            "B_BM25": {
+                "constraint_recall": 0.8667,
+                "decision_traceability": 0.6,
+                "workflow_integrity": 0.8,
+                "reasoning_recall": 1.0,
+                "general_retention": 0.05,
+                "reasoning_graph_recall": 0.0,
+                "dependency_recall": 0.0,
+                "compression_ratio": 0.9655,
+                "context_size_tokens": 90.48,
+                "latency_ms": 0.4931,
+                "sps": 76.17,
+                "ser": 7617.0
+            },
+            "C_Vector_Search": {
+                "constraint_recall": 0.8833,
+                "decision_traceability": 0.625,
+                "workflow_integrity": 0.8167,
+                "reasoning_recall": 1.0,
+                "general_retention": 0.1417,
+                "reasoning_graph_recall": 0.01,
+                "dependency_recall": 0.0008,
+                "compression_ratio": 0.9668,
+                "context_size_tokens": 86.71,
+                "latency_ms": 65.7188,
+                "sps": 78.25,
+                "ser": 7825.0
+            },
+            "D_SCRE": {
+                "constraint_recall": 0.9,
+                "decision_traceability": 0.7083,
+                "workflow_integrity": 0.85,
+                "reasoning_recall": 1.0,
+                "general_retention": 0.375,
+                "reasoning_graph_recall": 0.1159,
+                "dependency_recall": 0.2914,
+                "compression_ratio": 0.8383,
+                "context_size_tokens": 499.2,
+                "latency_ms": 2347.4408,
+                "sps": 83.17,
+                "ser": 1804.9
+            },
+            "E_LangChain_LLMExtract": {
+                "constraint_recall": 0.9333,
+                "decision_traceability": 0.7167,
+                "workflow_integrity": 0.8333,
+                "reasoning_recall": 1.0,
+                "general_retention": 0.3833,
+                "reasoning_graph_recall": 0.0671,
+                "dependency_recall": 0.1156,
+                "compression_ratio": 0.8507,
+                "context_size_tokens": 438.75,
+                "latency_ms": 87450.391,
+                "sps": 84.0,
+                "ser": 2074.07
+            }
+        }
+    }
+]

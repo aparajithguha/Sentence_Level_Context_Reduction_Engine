@@ -477,6 +477,7 @@ print(f"Saved {token_savings} tokens (~${token_savings * 0.000003:.4f} at GPT-4 
 | [WORKFLOW_EXAMPLE.md](WORKFLOW_EXAMPLE.md) | Step-by-step retrieval comparison (Raw vs BM25 vs Vector vs SCRE) |
 | [SCRE_DEEPDIVE.html](SCRE_DEEPDIVE.html) | Full technical architecture, scoring formula, and benchmark analysis |
 | [BENCHMARK_REPORT.md](BENCHMARK_REPORT.md) | Auto-generated benchmark narrative report |
+| [BENCHMARK_REPORT_sample.md](BENCHMARK_REPORT_sample.md) | Fast-iteration comparison (20-question / 19-doc sample, not the full 75-doc/100-Q&A suite) adding a LangChain-style LLM-extraction baseline (`LLMChainExtractor`) alongside Raw/BM25/Vector/SCRE |
 
 ---
 
