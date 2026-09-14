@@ -172,26 +172,28 @@ After top-K selection, SCRE expands the result set:
 
 ### Strategy Comparison
 
-| Metric | Raw Context | BM25 | Vector Search | **SCRE** |
-|--------|:-----------:|:----:|:-------------:|:--------:|
-| **SPS Score** | 97.40 | 76.53 | 77.32 | **84.36** |
-| **Constraint Recall** | 97.0% | 76.0% | 77.3% | **82.8%** |
-| **Decision Traceability** | 96.7% | 77.2% | 77.7% | **85.8%** |
-| **Workflow Integrity** | 98.3% | 76.3% | 77.0% | **83.7%** |
-| **Reasoning Recall** | 100.0% | 100.0% | 100.0% | **100.0%** |
-| **Reasoning Graph Recall** | 100.0% | 0.04% | 0.02% | **12.45%** |
-| **Dependency Recall** | 100.0% | 0.0% | 0.04% | **0.0%** |
-| **Compression Ratio** | 0.0% | 96.0% | 96.1% | **80.5%** |
-| **Avg Context Tokens** | 5,796 | 92 | 90 | **518** |
-| **Latency (ms)** | 0.004 | 0.86 | 58.70 | **62.58** |
-| **SER (Score/Token)** | 182 | 7,653 | 7,732 | **1,764** |
+> **⚠️ Sample run (20 Q&As / 19 docs), not the full 75-doc/100-Q&A suite** — see [BENCHMARK_REPORT_sample.md](BENCHMARK_REPORT_sample.md) for the raw report. Numbers below also add a **LangChain-style LLM-extraction baseline** (`LLMChainExtractor` — real generative inference via a local Ollama model over the raw document, the off-the-shelf default most RAG pipelines reach for). The previous full-suite numbers predate the taxonomy fixes that added `risk`/`alternative` categories and split the `reason`/`outcome` classification, so they're retired here rather than left stale; re-run `tests/unified_benchmark.py` for fresh full-suite figures.
+
+| Metric | Raw Context | BM25 | Vector Search | LangChain LLMExtract | **SCRE** |
+|--------|:-----------:|:----:|:-------------:|:---------------------:|:--------:|
+| **SPS Score** | 98.42 | 76.17 | 78.25 | 84.00 | **83.17** |
+| **Constraint Recall** | 100.0% | 86.7% | 88.3% | 93.3% | **90.0%** |
+| **Decision Traceability** | 96.7% | 60.0% | 62.5% | 71.7% | **70.8%** |
+| **Workflow Integrity** | 98.3% | 80.0% | 81.7% | 83.3% | **85.0%** |
+| **Reasoning Recall** | 100.0% | 100.0% | 100.0% | 100.0% | **100.0%** |
+| **Reasoning Graph Recall** | 100.0% | 0.0% | 1.0% | 6.7% | **11.6%** |
+| **Dependency Recall** | 100.0% | 0.0% | 0.08% | 11.6% | **29.1%** |
+| **Compression Ratio** | 0.0% | 96.6% | 96.7% | 85.1% | **83.8%** |
+| **Avg Context Tokens** | 4,953 | 90 | 87 | 439 | **499** |
+| **Latency (ms)** | 0.001 | 0.49 | 65.7 | 87,450 | **2,347** |
+| **SER (Score/Token)** | 215 | 7,617 | 7,825 | 2,074 | **1,805** |
 
 ### Key Findings
 
-- **SCRE preserves 84.36% of the semantic properties** of source documents while compressing **80.5% of token volume**
-- **BM25 and Vector Search destroy reasoning graph structure** — Reasoning Graph Recall drops to near 0% because they return disconnected sentences without traversing causal chains
-- **SCRE's Decision Traceability (85.8%)** exceeds both baselines by ~8.6pp — it follows decision-reason-implementation chains
-- **Raw Context scores 97.4 SPS** but at 5,796 avg tokens, it provides no compression benefit
+- **The LLM-extraction baseline scores marginally higher SPS (84.00 vs 83.17)** than SCRE, but only because it has an actual language model reading the full document — at **37x the latency** (87.5s vs 2.3s per query) and real generative-inference cost per call, versus SCRE's zero-LLM structural pipeline.
+- **SCRE preserves structural relationships the LLM baseline misses**: 1.7x better Reasoning Graph Recall (11.6% vs 6.7%) and 2.5x better Dependency Recall (29.1% vs 11.6%) — an LLM asked to "extract relevant sentences" optimizes for topical relevance, not for keeping a decision linked to its reason or a workflow step linked to its predecessor.
+- **BM25 and Vector Search destroy reasoning graph structure** — Reasoning Graph Recall drops near 0% because they return disconnected sentences without traversing causal chains.
+- **Raw Context scores 98.4 SPS** but at 4,953 avg tokens, it provides no compression benefit.
 
 ### SPS Formula
 
