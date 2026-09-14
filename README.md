@@ -1,18 +1,20 @@
-# ✂️ SCRE: Sentence-level Context Reduction Engine
+# 🌿 GRACE: Graph-aware Reasoning And Context Engine
 
 [![Python Version](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Status](https://img.shields.io/badge/status-Research--Grade-purple)](README.md)
 [![Benchmark](https://img.shields.io/badge/SPS-84.36%25-brightgreen)](tests/benchmark_results.json)
-[![Docs](https://img.shields.io/badge/docs-SCRE--Deep--Dive-blue)](SCRE_DEEPDIVE.html)
+[![Docs](https://img.shields.io/badge/docs-GRACE--Deep--Dive-blue)](SCRE_DEEPDIVE.html)
 
-> **ℹ️ STATUS:** SCRE is a **research-grade, benchmark-validated** library under active development (75-doc evaluation, 100 Q&A pairs, SPS 84.36). The core API (`reduce`) is stable. The extraction strategy chain and scoring weights are subject to change. **Not recommended for mission-critical production workloads** without independent evaluation on your target domain.
+> **ℹ️ NAMING:** This project was previously called **SCRE** (Sentence-level Context Reduction Engine). The name **GRACE** better reflects what actually differentiates it — graph-aware reasoning-chain preservation, not just sentence selection (see the benchmark below). This is a documentation-level rename only: the Python package, module names, and the `SCRE` class are unchanged for backward compatibility — every code example below still reads `from scre.query_aware_reducer import SCRE`.
+
+> **ℹ️ STATUS:** GRACE is a **research-grade, benchmark-validated** library under active development (75-doc evaluation, 100 Q&A pairs, SPS 84.36). The core API (`reduce`) is stable. The extraction strategy chain and scoring weights are subject to change. **Not recommended for mission-critical production workloads** without independent evaluation on your target domain.
 
 ---
 
 ## 📖 Overview
 
-**SCRE** (Sentence-level Context Reduction Engine) is a query-aware context compression library built for Retrieval-Augmented Generation (RAG) pipelines and LLM serving systems. It is **not** a traditional vector search or BM25 retriever — it reasons about *semantic structure* and compresses documents while preserving the logical, causal, and procedural relationships that matter to your query.
+**GRACE** (Graph-aware Reasoning And Context Engine, package name `scre`) is a query-aware context compression library built for Retrieval-Augmented Generation (RAG) pipelines and LLM serving systems. It is **not** a traditional vector search or BM25 retriever — it reasons about *semantic structure* and compresses documents while preserving the logical, causal, and procedural relationships that matter to your query.
 
 ### The Problem
 
@@ -23,9 +25,9 @@ Modern LLMs have massive context windows, but stuffing them with raw documents i
 - 🤔 **Lost-in-the-Middle** — LLMs lose focus when surrounded by noise
 - 🔗 **Broken Reasoning Chains** — Naive retrieval breaks causal links
 
-SCRE sits between your retrieval layer and your LLM, acting as an intelligent semantic compression filter.
+GRACE sits between your retrieval layer and your LLM, acting as an intelligent semantic compression filter.
 
-> 💡 **See it in action:** [WORKFLOW_EXAMPLE.md](WORKFLOW_EXAMPLE.md) walks through the same document and query across all four strategies — Raw Context, BM25, Vector Search, and SCRE — showing exactly what each retrieves and why.
+> 💡 **See it in action:** [WORKFLOW_EXAMPLE.md](WORKFLOW_EXAMPLE.md) walks through the same document and query across all four strategies — Raw Context, BM25, Vector Search, and GRACE — showing exactly what each retrieves and why.
 
 ---
 
@@ -67,7 +69,7 @@ graph TB
 
 ## ⚙️ Pipeline Stages
 
-SCRE executes in **six distinct stages** on every `reduce()` call:
+GRACE executes in **six distinct stages** on every `reduce()` call:
 
 ### 1️⃣ Ingestion & Intelligent Parsing
 - Raw text is split into semantic paragraphs and individual sentences
@@ -128,7 +130,7 @@ score = (type_weight × 2.0)
 Dense embeddings use `all-MiniLM-L6-v2` (fast inference, high quality). The evaluation suite uses `all-mpnet-base-v2` for stricter semantic similarity verification at `threshold ≥ 0.80`.
 
 ### 5️⃣ Context Expansion
-After top-K selection, SCRE expands the result set:
+After top-K selection, GRACE expands the result set:
 
 - **Adjacent Context Expansion** (`context_window`) — Includes ±N neighbouring sentences to resolve pronouns and preserve local coherence
 - **Reasoning Chain Expansion** — Performs 2-hop traversal on the reasoning graph to pull in causes and consequences of selected nodes
@@ -174,7 +176,7 @@ After top-K selection, SCRE expands the result set:
 
 > **⚠️ Sample run (20 Q&As / 19 docs), not the full 75-doc/100-Q&A suite** — see [BENCHMARK_REPORT_sample.md](BENCHMARK_REPORT_sample.md) for the raw report. Numbers below also add a **LangChain-style LLM-extraction baseline** (`LLMChainExtractor` — real generative inference via a local Ollama model over the raw document, the off-the-shelf default most RAG pipelines reach for). The previous full-suite numbers predate the taxonomy fixes that added `risk`/`alternative` categories and split the `reason`/`outcome` classification, so they're retired here rather than left stale; re-run `tests/unified_benchmark.py` for fresh full-suite figures.
 
-| Metric | Raw Context | BM25 | Vector Search | LangChain LLMExtract | **SCRE** |
+| Metric | Raw Context | BM25 | Vector Search | LangChain LLMExtract | **GRACE** |
 |--------|:-----------:|:----:|:-------------:|:---------------------:|:--------:|
 | **SPS Score** | 98.42 | 76.17 | 78.25 | 84.00 | **83.17** |
 | **Constraint Recall** | 100.0% | 86.7% | 88.3% | 93.3% | **90.0%** |
@@ -190,8 +192,8 @@ After top-K selection, SCRE expands the result set:
 
 ### Key Findings
 
-- **The LLM-extraction baseline scores marginally higher SPS (84.00 vs 83.17)** than SCRE, but only because it has an actual language model reading the full document — at **37x the latency** (87.5s vs 2.3s per query) and real generative-inference cost per call, versus SCRE's zero-LLM structural pipeline.
-- **SCRE preserves structural relationships the LLM baseline misses**: 1.7x better Reasoning Graph Recall (11.6% vs 6.7%) and 2.5x better Dependency Recall (29.1% vs 11.6%) — an LLM asked to "extract relevant sentences" optimizes for topical relevance, not for keeping a decision linked to its reason or a workflow step linked to its predecessor.
+- **The LLM-extraction baseline scores marginally higher SPS (84.00 vs 83.17)** than GRACE, but only because it has an actual language model reading the full document — at **37x the latency** (87.5s vs 2.3s per query) and real generative-inference cost per call, versus GRACE's zero-LLM structural pipeline.
+- **GRACE preserves structural relationships the LLM baseline misses**: 1.7x better Reasoning Graph Recall (11.6% vs 6.7%) and 2.5x better Dependency Recall (29.1% vs 11.6%) — an LLM asked to "extract relevant sentences" optimizes for topical relevance, not for keeping a decision linked to its reason or a workflow step linked to its predecessor.
 - **BM25 and Vector Search destroy reasoning graph structure** — Reasoning Graph Recall drops near 0% because they return disconnected sentences without traversing causal chains.
 - **Raw Context scores 98.4 SPS** but at 4,953 avg tokens, it provides no compression benefit.
 
@@ -274,7 +276,7 @@ print(f"Tokens: {result['metadata']['reduced_estimated_tokens']}")
 
 `reduce()` is the only entry point, and it is a single, self-contained,
 in-memory computation over one document/query pair — nothing is written to
-disk or retained after the call returns. SCRE is built to sit inline on a
+disk or retained after the call returns. GRACE is built to sit inline on a
 live prompt path: each call is one prompt, and the reduced result is handed
 to the LLM immediately. There is no document cache and no `document_id` —
 calling `reduce()` again on the same text simply recomputes it.
@@ -308,7 +310,7 @@ result["reasoning_edges"]  # [(source_idx, target_idx), ...]
 
 ## 🖥️ Interactive Dashboard
 
-SCRE ships with a research-grade Streamlit dashboard for exploration and evaluation:
+GRACE ships with a research-grade Streamlit dashboard for exploration and evaluation:
 
 ```bash
 streamlit run dashboard.py
@@ -317,20 +319,20 @@ streamlit run dashboard.py
 **Dashboard Tabs:**
 1. **📊 Performance Dashboard** — Full benchmark results table + radar chart comparison
 2. **🔌 Graph Explorer** — Interactive network graph of reasoning edges per document
-3. **🛝 Playground & Comparison** — Side-by-side BM25 vs Vector vs SCRE retrieval for any document/query pair
+3. **🛝 Playground & Comparison** — Side-by-side BM25 vs Vector vs GRACE retrieval for any document/query pair
 
 ---
 
 ## 🎬 Showcase Demo (Web UI)
 
-A lightweight Flask app for demonstrating *how* SCRE reduces a single prompt/document — paste content, see the reduced output, and inspect exactly which sentences were kept or dropped and why. It also detects and displays whether the input is a structured/system prompt or an unstructured (paragraph/image) prompt, since SCRE's reduction strategy differs for each.
+A lightweight Flask app for demonstrating *how* GRACE reduces a single prompt/document — paste content, see the reduced output, and inspect exactly which sentences were kept or dropped and why. It also detects and displays whether the input is a structured/system prompt or an unstructured (paragraph/image) prompt, since GRACE's reduction strategy differs for each.
 
 ```bash
 python -m showcase.server
 # open http://127.0.0.1:5050
 ```
 
-`showcase/` is a pure consumer of `scre`'s public API (`SCRE` plus its documented submodule functions) — it never modifies the library itself, the same way any downstream application would use SCRE as a dependency.
+`showcase/` is a pure consumer of `scre`'s public API (`SCRE` plus its documented submodule functions) — it never modifies the library itself, the same way any downstream application would use GRACE (package name `scre`) as a dependency.
 
 ---
 
@@ -389,7 +391,7 @@ SCRE/
 
 ## 🔧 Configuration
 
-### SCRE Constructor
+### GRACE (`SCRE`) Constructor
 
 ```python
 engine = SCRE(
@@ -476,10 +478,10 @@ print(f"Saved {token_savings} tokens (~${token_savings * 0.000003:.4f} at GPT-4 
 | Document | Description |
 |----------|-------------|
 | [README.md](README.md) | This file — project overview and quick start |
-| [WORKFLOW_EXAMPLE.md](WORKFLOW_EXAMPLE.md) | Step-by-step retrieval comparison (Raw vs BM25 vs Vector vs SCRE) |
+| [WORKFLOW_EXAMPLE.md](WORKFLOW_EXAMPLE.md) | Step-by-step retrieval comparison (Raw vs BM25 vs Vector vs GRACE) |
 | [SCRE_DEEPDIVE.html](SCRE_DEEPDIVE.html) | Full technical architecture, scoring formula, and benchmark analysis |
 | [BENCHMARK_REPORT.md](BENCHMARK_REPORT.md) | Auto-generated benchmark narrative report |
-| [BENCHMARK_REPORT_sample.md](BENCHMARK_REPORT_sample.md) | Fast-iteration comparison (20-question / 19-doc sample, not the full 75-doc/100-Q&A suite) adding a LangChain-style LLM-extraction baseline (`LLMChainExtractor`) alongside Raw/BM25/Vector/SCRE |
+| [BENCHMARK_REPORT_sample.md](BENCHMARK_REPORT_sample.md) | Fast-iteration comparison (20-question / 19-doc sample, not the full 75-doc/100-Q&A suite) adding a LangChain-style LLM-extraction baseline (`LLMChainExtractor`) alongside Raw/BM25/Vector/GRACE |
 
 ---
 
