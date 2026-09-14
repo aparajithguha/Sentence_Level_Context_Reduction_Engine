@@ -33,37 +33,7 @@ GRACE sits between your retrieval layer and your LLM, acting as an intelligent s
 
 ## 🏗️ Architecture
 
-```mermaid
-graph TB
-    A[Raw Document Input]
-    B[Text Segmentation & Parsing]
-    C[Semantic Unit Extraction]
-    D[Knowledge Graph Construction]
-    E[Reasoning Graph Construction]
-    F[Dense Embeddings - all-MiniLM-L6-v2]
-    G[User Query]
-    H[Query-Aware Hybrid Scoring Engine]
-    I[Top-K Unit Selection]
-    J[Reasoning Chain Expansion]
-    K[Adjacent Context Expansion]
-    L[De-duplication & Ordering]
-    M[Final Reduced Context]
-    N[LLM Answer Generation]
-
-    A --> B --> C
-    C --> D
-    C --> E
-    C --> F
-    G --> H
-    D --> H
-    E --> H
-    F --> H
-    H --> I
-    I --> J
-    J --> K
-    K --> L
-    L --> M --> N
-```
+![GRACE architecture: six-stage pipeline from raw document input through segmentation, semantic unit classification, dual graph construction, query-aware scoring, top-K selection with reasoning-chain expansion, to a compressed context handed to the LLM](assets/grace_architecture.png)
 
 ---
 
