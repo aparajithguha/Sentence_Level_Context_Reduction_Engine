@@ -61,11 +61,11 @@
 
 ## 🏆 SCRE Publishable Evaluation Suite (75 Docs, 100 Q&As)
 *Defensible research-grade evaluation comparing raw proposal context, BM25 keyword matching, dense Vector Search, and the structural SCRE engine on semantic recall, graph paths, and step dependencies.*
-**Run Date:** 2026-06-20 13:37:36
+**Run Date:** 2026-09-14 14:32:14
 
 | Strategy | SPS Score (0-100) | Constraint Recall | Decision Traceability | Workflow Integrity | Reasoning Recall | Reasoning Graph Recall | Dependency Recall | SER (Efficiency) | Compression | Latency |
 |---|---|---|---|---|---|---|---|---|---|---|
 | **Raw Context** | 97.40 | 97.00% | 96.67% | 98.33% | 100.00% | 100.00% | 100.00% | 182.05 | 0.00% | 0.0ms |
-| **BM25** | 76.53 | 76.00% | 77.17% | 76.33% | 100.00% | 0.04% | 0.00% | 7653.00 | 95.99% | 0.9ms |
-| **Vector Search** | 77.32 | 77.33% | 77.67% | 77.00% | 100.00% | 0.02% | 0.04% | 7732.00 | 96.05% | 58.7ms |
-| **SCRE** | 84.36 | 82.83% | 85.83% | 83.67% | 100.00% | 12.45% | 0.00% | 1763.50 | 80.50% | 62.6ms |
+| **BM25** | 76.53 | 76.00% | 77.17% | 76.33% | 100.00% | 0.08% | 0.00% | 7653.00 | 95.99% | 0.6ms |
+| **Vector Search** | 77.32 | 77.33% | 77.67% | 77.00% | 100.00% | 0.03% | 0.04% | 7732.00 | 96.05% | 67.1ms |
+| **SCRE** | 81.77 | 81.00% | 82.50% | 80.00% | 100.00% | 7.27% | 24.65% | 1926.54 | 84.32% | 2607.4ms |

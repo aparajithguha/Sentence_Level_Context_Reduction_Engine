@@ -6,7 +6,7 @@
 [![Benchmark](https://img.shields.io/badge/SPS-84.36%25-brightgreen)](tests/benchmark_results.json)
 [![Docs](https://img.shields.io/badge/docs-SCRE--Deep--Dive-blue)](SCRE_DEEPDIVE.html)
 
-> **ℹ️ STATUS:** SCRE is a **research-grade, benchmark-validated** library under active development (75-doc evaluation, 100 Q&A pairs, SPS 84.36). Core APIs (`ingest`, `retrieve`, `reduce`) are stable. The extraction strategy chain and scoring weights are subject to change. **Not recommended for mission-critical production workloads** without independent evaluation on your target domain.
+> **ℹ️ STATUS:** SCRE is a **research-grade, benchmark-validated** library under active development (75-doc evaluation, 100 Q&A pairs, SPS 84.36). The core API (`reduce`) is stable. The extraction strategy chain and scoring weights are subject to change. **Not recommended for mission-critical production workloads** without independent evaluation on your target domain.
 
 ---
 
@@ -67,7 +67,7 @@ graph TB
 
 ## ⚙️ Pipeline Stages
 
-SCRE executes in **six distinct stages** on every `ingest()` + `retrieve()` call:
+SCRE executes in **six distinct stages** on every `reduce()` call:
 
 ### 1️⃣ Ingestion & Intelligent Parsing
 - Raw text is split into semantic paragraphs and individual sentences
@@ -264,20 +264,38 @@ print(f"Compressed: {result['metadata']['reduction_ratio']:.1%}")
 print(f"Tokens: {result['metadata']['reduced_estimated_tokens']}")
 ```
 
-### Ingest-then-Retrieve (Persistent Mode)
+### Stateless by design
+
+`reduce()` is the only entry point, and it is a single, self-contained,
+in-memory computation over one document/query pair — nothing is written to
+disk or retained after the call returns. SCRE is built to sit inline on a
+live prompt path: each call is one prompt, and the reduced result is handed
+to the LLM immediately. There is no document cache and no `document_id` —
+calling `reduce()` again on the same text simply recomputes it.
+
+The spaCy pipeline and sentence-transformer model *are* shared, process-wide
+singletons (`scre.models.get_nlp()` / `get_embedder()`) — loading them is
+expensive, so every `SCRE()` instance in a process reuses the same already-
+loaded models rather than reloading them per call:
 
 ```python
 from scre.query_aware_reducer import SCRE
 
-# Persistent SQLite-backed engine (survives across queries)
-engine = SCRE(db_path="scre_memory.db")
+engine = SCRE()
+r1 = engine.reduce(document_text, "Why PostgreSQL?", max_sentences=4)
+r2 = engine.reduce(document_text, "What are the constraints?", max_sentences=4)
+```
 
-# Ingest once
-engine.ingest(document_text, document_id="postgres-adr-2024")
+### Introspection: `analyze()`
 
-# Retrieve multiple times with different queries
-r1 = engine.retrieve("Why PostgreSQL?", document_id="postgres-adr-2024", max_sentences=4)
-r2 = engine.retrieve("What are the constraints?", document_id="postgres-adr-2024", max_sentences=4)
+For visualizing or auditing the extraction/graph stages without scoring
+against a query (e.g. the dashboard's reasoning-graph explorer), use
+`analyze()`:
+
+```python
+result = engine.analyze(document_text)
+result["units"]            # [{"sentence_index", "text", "unit_type", "render_text"}, ...]
+result["reasoning_edges"]  # [(source_idx, target_idx), ...]
 ```
 
 ---
@@ -317,8 +335,9 @@ streamlit run dashboard.py
 ```
 SCRE/
 ├── scre/
-│   ├── query_aware_reducer.py      # Core engine: parsing, graphs, scoring, retrieval
-│   ├── scre_pipeline.py            # End-to-end pipeline (ingest → reduce → answer)
+│   ├── query_aware_reducer.py      # Core engine: parsing, graphs, scoring, reduction
+│   ├── models.py                   # Process-wide singleton spaCy/embedder loaders
+│   ├── scre_pipeline.py            # End-to-end pipeline (reduce → answer)
 │   └── scre_answer_engine.py       # LLM integration (Ollama)
 │
 ├── tests/
@@ -342,21 +361,23 @@ SCRE/
 
 ```python
 engine = SCRE(
-    model="en_core_web_sm",   # spaCy model for NLP
-    db_path=":memory:",        # SQLite path — use file path for persistence
-    extractors=[...]           # Optional: custom extraction strategy chain
+    model="en_core_web_sm",   # spaCy model name (fetched from the shared singleton cache)
+    nlp=None,                 # Optional: an already-loaded spaCy pipeline to use instead
+    embedder=None,            # Optional: an already-loaded SentenceTransformer to use instead
+    extractors=[...]          # Optional: custom extraction strategy chain
 )
 ```
 
-### Retrieve Parameters
+### Reduce Parameters
 
 ```python
-result = engine.retrieve(
+result = engine.reduce(
+    text="...",
     query="...",
-    document_id="...",
     max_sentences=6,       # Max semantic units to select
     context_window=1,      # Adjacent sentence expansion radius
-    min_tokens=250,        # Minimum token floor (prevents under-retrieval)
+    min_tokens=250,        # Minimum token floor (prevents under-retrieval; capped
+                            # at 2x max_sentences and at the tokens actually available)
     max_tokens=None        # Optional hard token ceiling
 )
 ```
@@ -407,7 +428,7 @@ print(f"Saved {token_savings} tokens (~${token_savings * 0.000003:.4f} at GPT-4 
 - [x] Dual-graph construction (Knowledge + Reasoning)
 - [x] Dense + sparse hybrid scoring
 - [x] Reasoning chain multi-hop expansion
-- [x] Persistent SQLite-backed memory store
+- [x] Stateless, in-memory reduction with shared model singletons
 - [x] Research-grade benchmark suite (75 docs, 100 Q&As)
 - [x] Interactive Streamlit dashboard with graph explorer
 - [ ] LangChain / LlamaIndex retriever integration

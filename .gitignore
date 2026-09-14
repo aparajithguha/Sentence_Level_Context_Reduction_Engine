@@ -44,6 +44,7 @@ tests/scre_benchmark_history.json
 # Benchmark corpus (large, not committed)
 keps/
 rfcs-master/
+data/enhancements-master/
 
 # Old benchmark history files
 tests/keps_benchmark_history.json

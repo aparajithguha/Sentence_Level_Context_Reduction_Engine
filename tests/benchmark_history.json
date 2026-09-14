@@ -59,5 +59,127 @@
                 "ser": 1763.5
             }
         }
+    },
+    {
+        "timestamp": "2026-09-14 13:34:47",
+        "results": {
+            "A_Raw_Context": {
+                "constraint_recall": 0.97,
+                "decision_traceability": 0.9667,
+                "workflow_integrity": 0.9833,
+                "reasoning_recall": 1.0,
+                "general_retention": 0.9067,
+                "reasoning_graph_recall": 1.0,
+                "dependency_recall": 1.0,
+                "compression_ratio": 0.0,
+                "context_size_tokens": 5796.167,
+                "latency_ms": 0.0068,
+                "sps": 97.4,
+                "ser": 182.05
+            },
+            "B_BM25": {
+                "constraint_recall": 0.76,
+                "decision_traceability": 0.7717,
+                "workflow_integrity": 0.7633,
+                "reasoning_recall": 1.0,
+                "general_retention": 0.065,
+                "reasoning_graph_recall": 0.0008,
+                "dependency_recall": 0.0,
+                "compression_ratio": 0.9599,
+                "context_size_tokens": 91.754,
+                "latency_ms": 0.775,
+                "sps": 76.53,
+                "ser": 7653.0
+            },
+            "C_Vector_Search": {
+                "constraint_recall": 0.7733,
+                "decision_traceability": 0.7767,
+                "workflow_integrity": 0.77,
+                "reasoning_recall": 1.0,
+                "general_retention": 0.09,
+                "reasoning_graph_recall": 0.0003,
+                "dependency_recall": 0.0004,
+                "compression_ratio": 0.9605,
+                "context_size_tokens": 90.233,
+                "latency_ms": 100.3625,
+                "sps": 77.32,
+                "ser": 7732.0
+            },
+            "D_SCRE": {
+                "constraint_recall": 0.81,
+                "decision_traceability": 0.825,
+                "workflow_integrity": 0.8,
+                "reasoning_recall": 1.0,
+                "general_retention": 0.3017,
+                "reasoning_graph_recall": 0.0727,
+                "dependency_recall": 0.0,
+                "compression_ratio": 0.8428,
+                "context_size_tokens": 460.07,
+                "latency_ms": 2960.0846,
+                "sps": 81.77,
+                "ser": 1925.45
+            }
+        }
+    },
+    {
+        "timestamp": "2026-09-14 14:32:14",
+        "results": {
+            "A_Raw_Context": {
+                "constraint_recall": 0.97,
+                "decision_traceability": 0.9667,
+                "workflow_integrity": 0.9833,
+                "reasoning_recall": 1.0,
+                "general_retention": 0.9067,
+                "reasoning_graph_recall": 1.0,
+                "dependency_recall": 1.0,
+                "compression_ratio": 0.0,
+                "context_size_tokens": 5796.167,
+                "latency_ms": 0.0008,
+                "sps": 97.4,
+                "ser": 182.05
+            },
+            "B_BM25": {
+                "constraint_recall": 0.76,
+                "decision_traceability": 0.7717,
+                "workflow_integrity": 0.7633,
+                "reasoning_recall": 1.0,
+                "general_retention": 0.065,
+                "reasoning_graph_recall": 0.0008,
+                "dependency_recall": 0.0,
+                "compression_ratio": 0.9599,
+                "context_size_tokens": 91.754,
+                "latency_ms": 0.5966,
+                "sps": 76.53,
+                "ser": 7653.0
+            },
+            "C_Vector_Search": {
+                "constraint_recall": 0.7733,
+                "decision_traceability": 0.7767,
+                "workflow_integrity": 0.77,
+                "reasoning_recall": 1.0,
+                "general_retention": 0.09,
+                "reasoning_graph_recall": 0.0003,
+                "dependency_recall": 0.0004,
+                "compression_ratio": 0.9605,
+                "context_size_tokens": 90.233,
+                "latency_ms": 67.1375,
+                "sps": 77.32,
+                "ser": 7732.0
+            },
+            "D_SCRE": {
+                "constraint_recall": 0.81,
+                "decision_traceability": 0.825,
+                "workflow_integrity": 0.8,
+                "reasoning_recall": 1.0,
+                "general_retention": 0.3017,
+                "reasoning_graph_recall": 0.0727,
+                "dependency_recall": 0.2465,
+                "compression_ratio": 0.8432,
+                "context_size_tokens": 459.81,
+                "latency_ms": 2607.387,
+                "sps": 81.77,
+                "ser": 1926.54
+            }
+        }
     }
 ]

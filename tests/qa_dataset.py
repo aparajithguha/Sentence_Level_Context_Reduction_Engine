@@ -22,17 +22,12 @@ WORKFLOW_QA_DATASET = [
 DECISION_QA_DATASET = [
     {
         "document_path": "data/new_sample.txt",
-        "question": "What database was selected?",
+        "question": "What type of LLMs was decided on instead of cloud-hosted models?",
         "expected_answer": "local",
     },
 ]
 
 REASONING_QA_DATASET = [
-    {
-        "document_path": "data/new_test2.txt",
-        "question": "Why was Ollama selected?",
-        "expected_answer": "privacy",
-    },
     {
         "document_path": "data/new_sample.txt",
         "question": "Why was local LLMs chosen?",

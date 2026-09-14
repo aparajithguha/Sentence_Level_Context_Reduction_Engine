@@ -84,6 +84,14 @@ def run_dataset(name: str, dataset: list[dict], context_window: int) -> dict:
             item["question"],
             max_sentences=4,
             context_window=context_window,
+            # Explicit, not the run_scre default ("ollama") -- must match
+            # full_answer's mode below so this is a fair, deterministic
+            # extractive-vs-extractive comparison of reduced vs. full
+            # context, not extractive-vs-LLM. Left implicit, this silently
+            # measured Ollama's answering behavior (which can vary/refuse
+            # independent of retrieval quality) rather than SCRE's own
+            # retrieval accuracy.
+            answer_mode="extractive",
         )
         full_answer = answer_question(
             reduced_context=document,

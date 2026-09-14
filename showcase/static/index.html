@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SCRE reduction demo</title>
+<style>
+  :root {
+    --surface-page: #f7f7f5;
+    --surface-card: #ffffff;
+    --surface-1: #f1f0ec;
+    --border: #e3e2dc;
+    --border-strong: #cfcec6;
+    --text-primary: #1a1a18;
+    --text-secondary: #6b6a63;
+    --text-muted: #9a998f;
+    --text-success: #17500a;
+    --bg-success: #eaf3de;
+    --accent: #534ab7;
+    --accent-fg: #ffffff;
+    --radius: 8px;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --surface-page: #17171a;
+      --surface-card: #1f1f23;
+      --surface-1: #26262b;
+      --border: #35353b;
+      --border-strong: #46464d;
+      --text-primary: #ededed;
+      --text-secondary: #a3a29b;
+      --text-muted: #7a7972;
+      --text-success: #86efac;
+      --bg-success: #0c2a12;
+      --accent: #a29bf0;
+      --accent-fg: #17171a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--surface-page);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 28px 24px 64px; }
+  h1 { font-size: 18px; font-weight: 600; margin: 0 0 4px; }
+  .subtitle { font-size: 13px; color: var(--text-secondary); margin: 0 0 20px; }
+  .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+  .toolbar-left, .toolbar-right { display: flex; align-items: center; gap: 10px; }
+  label { font-size: 13px; color: var(--text-secondary); }
+  select, textarea, button {
+    font-family: inherit;
+    font-size: 13px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border-strong);
+    background: var(--surface-card);
+    color: var(--text-primary);
+  }
+  select { padding: 7px 10px; }
+  textarea { padding: 10px 12px; }
+  button {
+    padding: 8px 16px;
+    cursor: pointer;
+    transition: background 0.1s ease;
+  }
+  button:hover { background: var(--surface-1); }
+  button:active { transform: scale(0.98); }
+  #reduceBtn {
+    background: var(--accent);
+    color: var(--accent-fg);
+    border: none;
+    font-weight: 500;
+  }
+  #reduceBtn:hover { opacity: 0.92; background: var(--accent); }
+  .grid-2 { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 16px; }
+  .col-label { font-size: 13px; color: var(--text-secondary); margin: 0 0 6px; }
+  textarea.box { width: 100%; height: 400px; resize: vertical; overflow-y: auto; }
+  #reducedText { font-family: var(--font-mono); border-color: var(--accent); }
+  .status-line { font-size: 13px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; min-height: 18px; }
+  .spinner {
+    width: 13px; height: 13px; border-radius: 50%;
+    border: 2px solid var(--border-strong); border-top-color: var(--text-secondary);
+    display: inline-block; animation: spin 0.7s linear infinite; flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .workings { margin-top: 24px; }
+  .prompt-type-badge {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 4px 11px;
+    border-radius: 20px;
+    white-space: nowrap;
+  }
+  .prompt-type-badge.system_prompt { background: #EEEDFE; color: #3C3489; }
+  .prompt-type-badge.unstructured_prompt { background: #FAECE7; color: #712B13; }
+  @media (prefers-color-scheme: dark) {
+    .prompt-type-badge.system_prompt { background: #3C3489; color: #CECBF6; }
+    .prompt-type-badge.unstructured_prompt { background: #712B13; color: #F5C4B3; }
+  }
+  .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 22px; }
+  .metric-card { background: var(--surface-1); border-radius: 10px; padding: 14px 16px; }
+  .metric-card .label { font-size: 12px; color: var(--text-secondary); margin: 0 0 3px; }
+  .metric-card .value { font-size: 19px; font-weight: 600; margin: 0; }
+  .section-label { font-size: 13px; color: var(--text-secondary); margin: 0 0 8px; font-weight: 500; }
+  .understand-grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 12px; margin-bottom: 24px; }
+  .understand-card { background: var(--surface-1); border-radius: 10px; padding: 12px 14px; }
+  .understand-card .who { font-size: 12px; color: var(--text-secondary); margin: 0 0 6px; }
+  .understand-card .say { font-size: 13px; margin: 0; }
+  .unit-summary { font-size: 12px; color: var(--text-secondary); margin: 0 0 10px; }
+  .unit-summary strong { color: var(--text-primary); font-weight: 600; }
+  .type-filter { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .type-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; padding: 4px 10px; border-radius: 20px;
+    border: 1px solid var(--border-strong); background: var(--surface-card);
+    color: var(--text-secondary); cursor: pointer; user-select: none;
+  }
+  .type-chip .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .type-chip.active { background: var(--surface-1); border-color: var(--text-secondary); color: var(--text-primary); font-weight: 500; }
+  .unit-list {
+    display: flex; flex-direction: column; gap: 4px;
+    max-height: 340px; overflow-y: auto;
+    border: 1px solid var(--border); border-radius: 10px; padding: 8px;
+  }
+  .urow {
+    display: flex; align-items: center; gap: 9px;
+    padding: 6px 8px; border-radius: 6px;
+  }
+  .urow.hidden-row { display: none; }
+  .urow.is-dropped { opacity: 0.55; }
+  .urow .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .urow .utype { font-size: 11px; color: var(--text-muted); width: 66px; flex-shrink: 0; text-transform: capitalize; }
+  .urow .utext {
+    flex: 1; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .urow .uflag { font-size: 11px; white-space: nowrap; flex-shrink: 0; }
+  .urow .uflag.kept { color: var(--text-success); }
+  .urow .uflag.dropped { color: var(--text-muted); }
+  .error-msg { font-size: 13px; color: #a32d2d; margin: 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>SCRE reduction demo</h1>
+  <p class="subtitle">Paste content, reduce it, and see exactly what the engine kept, dropped, and why.</p>
+
+  <div class="toolbar">
+    <div class="toolbar-left">
+      <label for="modelSelect">Reasoning model</label>
+      <select id="modelSelect">
+        <option value="qwen3">Qwen3 4B (fast)</option>
+        <option value="gemma4">Gemma4 e2B</option>
+      </select>
+      <span id="promptTypeBadge" class="prompt-type-badge"></span>
+    </div>
+    <div class="toolbar-right">
+      <span id="statusLine" class="status-line"></span>
+      <button id="clearBtn" type="button">Clear</button>
+      <button id="reduceBtn" type="button">Reduce</button>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div>
+      <p class="col-label">Prompt content</p>
+      <textarea id="content" class="box" placeholder="Paste a document, prompt, or agent instructions...">Decision: We chose PostgreSQL as the primary database.
+Reason: It satisfies our ACID compliance constraint.
+Constraint: All writes must use transactions.
+Fact: The team is based in Bangalore.
+Decision: We chose Redis for the caching layer.
+Constraint: The caching layer must be cost-effective.
+Task: Implement persistent memory storage.</textarea>
+    </div>
+    <div>
+      <p class="col-label">Reduced prompt</p>
+      <textarea id="reducedText" class="box" readonly placeholder="Reduced output appears here after you click Reduce."></textarea>
+    </div>
+  </div>
+
+  <div id="workings" class="workings" hidden>
+    <div id="metricGrid" class="metric-grid"></div>
+
+    <p class="section-label">What <span id="modelNameLabel">the model</span> takes away</p>
+    <div id="understandArea">
+      <div class="understand-grid">
+        <div class="understand-card">
+          <p class="who">From original prompt</p>
+          <p class="say" id="understandOriginal">-</p>
+        </div>
+        <div class="understand-card">
+          <p class="who">From reduced prompt</p>
+          <p class="say" id="understandReduced">-</p>
+        </div>
+      </div>
+    </div>
+
+    <p class="section-label">How it reduced</p>
+    <p id="unitSummary" class="unit-summary"></p>
+    <div id="typeFilter" class="type-filter"></div>
+    <div id="unitList" class="unit-list"></div>
+  </div>
+</div>
+
+<script>
+const TYPE_STYLE = {
+  decision:    { bg: '#EEEDFE', fg: '#3C3489', node: '#7F77DD', nodeDark: '#3C3489' },
+  reason:      { bg: '#E1F5EE', fg: '#085041', node: '#1D9E75', nodeDark: '#085041' },
+  constraint:  { bg: '#FAECE7', fg: '#712B13', node: '#D85A30', nodeDark: '#712B13' },
+  goal:        { bg: '#FBEAF0', fg: '#72243E', node: '#D4537E', nodeDark: '#72243E' },
+  workflow:    { bg: '#FBEAF0', fg: '#72243E', node: '#D4537E', nodeDark: '#72243E' },
+  task:        { bg: '#F1EFE8', fg: '#444441', node: '#888780', nodeDark: '#444441' },
+  risk:        { bg: '#FDF0DC', fg: '#7A4A05', node: '#E0A23B', nodeDark: '#7A4A05' },
+  outcome:     { bg: '#E1F5EE', fg: '#085041', node: '#1D9E75', nodeDark: '#085041' },
+  alternative: { bg: '#E5F0FB', fg: '#144169', node: '#4E93D9', nodeDark: '#144169' },
+  fact:        { bg: '#F1EFE8', fg: '#444441', node: '#888780', nodeDark: '#444441' },
+  question:    { bg: '#F1EFE8', fg: '#444441', node: '#888780', nodeDark: '#444441' },
+  comparison:  { bg: '#F1EFE8', fg: '#444441', node: '#888780', nodeDark: '#444441' },
+};
+const DEFAULT_STYLE = { bg: '#F1EFE8', fg: '#444441', node: '#888780', nodeDark: '#444441' };
+// Priority order for filter chips -- mirrors CATEGORY_WEIGHTS in scre/units.py
+// so higher-weight categories (the ones the "why did it keep this" story is
+// actually about) surface first, with "fact" trailing since it's usually the
+// largest and least interesting bucket.
+const TYPE_ORDER = ['decision', 'constraint', 'reason', 'goal', 'workflow', 'task', 'risk', 'outcome', 'alternative', 'comparison', 'question', 'fact'];
+const MODEL_LABELS = { qwen3: 'Qwen3 4B', gemma4: 'Gemma4 e2B' };
+
+const $ = (id) => document.getElementById(id);
+let isReducing = false;
+
+function styleFor(type) { return TYPE_STYLE[type] || DEFAULT_STYLE; }
+
+const PROMPT_TYPE_LABELS = {
+  system_prompt: 'Detected: structured / system prompt',
+  unstructured_prompt: 'Detected: unstructured / paragraph prompt (text, image, etc.)',
+};
+
+function renderPromptType(promptType) {
+  const badge = $('promptTypeBadge');
+  badge.className = `prompt-type-badge ${promptType}`;
+  badge.textContent = PROMPT_TYPE_LABELS[promptType] || promptType;
+}
+
+function renderMetrics(meta) {
+  const cards = [
+    { label: 'Tokens', value: `${meta.original_estimated_tokens} → ${meta.reduced_estimated_tokens}` },
+    { label: 'Reduction', value: `${Math.round(meta.reduction_ratio * 100)}%` },
+    { label: 'Sentences', value: `${meta.original_sentences} → ${meta.reduced_sentences}` },
+  ];
+  $('metricGrid').innerHTML = cards.map(c => `
+    <div class="metric-card"><p class="label">${c.label}</p><p class="value">${c.value}</p></div>
+  `).join('');
+}
+
+let activeTypeFilter = 'all';
+
+function renderUnitList(units) {
+  const sorted = [...units].sort((a, b) => {
+    if (a.kept !== b.kept) return a.kept ? -1 : 1;
+    return b.score - a.score;
+  });
+
+  const counts = new Map();
+  units.forEach(u => counts.set(u.type, (counts.get(u.type) || 0) + 1));
+  const keptCount = units.filter(u => u.kept).length;
+
+  $('unitSummary').innerHTML = `<strong>${keptCount}</strong> kept &middot; <strong>${units.length - keptCount}</strong> dropped out of ${units.length} sentences`;
+
+  const presentTypes = [...counts.keys()].sort((a, b) => {
+    const ia = TYPE_ORDER.indexOf(a), ib = TYPE_ORDER.indexOf(b);
+    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+  });
+
+  const chips = [`<span class="type-chip active" data-type="all">All <span class="count">${units.length}</span></span>`]
+    .concat(presentTypes.map(type => {
+      const s = styleFor(type);
+      return `<span class="type-chip" data-type="${type}"><span class="dot" style="background:${s.node}"></span>${type} <span class="count">${counts.get(type)}</span></span>`;
+    }));
+  $('typeFilter').innerHTML = chips.join('');
+  $('typeFilter').querySelectorAll('.type-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      activeTypeFilter = chip.dataset.type;
+      $('typeFilter').querySelectorAll('.type-chip').forEach(c => c.classList.toggle('active', c === chip));
+      applyTypeFilter();
+    });
+  });
+
+  $('unitList').innerHTML = sorted.map(u => {
+    const s = styleFor(u.type);
+    const flag = u.kept
+      ? `<span class="uflag kept">kept</span>`
+      : `<span class="uflag dropped">dropped</span>`;
+    return `
+      <div class="urow ${u.kept ? '' : 'is-dropped'}" data-type="${u.type}" title="${escapeHtml(u.text)}">
+        <span class="dot" style="background:${s.node}"></span>
+        <span class="utype">${u.type}</span>
+        <span class="utext">${escapeHtml(u.text)}</span>
+        ${flag}
+      </div>`;
+  }).join('');
+  activeTypeFilter = 'all';
+}
+
+function applyTypeFilter() {
+  $('unitList').querySelectorAll('.urow').forEach(row => {
+    const show = activeTypeFilter === 'all' || row.dataset.type === activeTypeFilter;
+    row.classList.toggle('hidden-row', !show);
+  });
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+async function runUnderstanding(original, reduced, modelKey) {
+  $('understandOriginal').textContent = 'Thinking...';
+  $('understandReduced').textContent = 'Thinking...';
+  try {
+    const resp = await fetch('/api/understand', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ original, reduced, model: modelKey }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'request failed');
+    $('understandOriginal').textContent = data.original;
+    $('understandReduced').textContent = data.reduced;
+  } catch (err) {
+    $('understandOriginal').innerHTML = `<span class="error-msg">Could not reach the model: ${escapeHtml(err.message)}</span>`;
+    $('understandReduced').innerHTML = '';
+  }
+}
+
+$('reduceBtn').addEventListener('click', async () => {
+  if (isReducing) return;
+  const content = $('content').value.trim();
+  if (!content) return;
+  isReducing = true;
+  $('workings').hidden = true;
+  $('reducedText').value = '';
+  $('statusLine').innerHTML = `<span class="spinner"></span>Reducing...`;
+
+  try {
+    const resp = await fetch('/api/reduce', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'request failed');
+
+    $('reducedText').value = data.context;
+    $('reducedText').scrollTop = 0;
+    $('statusLine').innerHTML = '';
+    renderPromptType(data.prompt_type);
+    renderMetrics(data.metadata);
+    renderUnitList(data.units);
+    $('workings').hidden = false;
+
+    const modelKey = $('modelSelect').value;
+    $('modelNameLabel').textContent = MODEL_LABELS[modelKey];
+    runUnderstanding(content, data.context, modelKey);
+  } catch (err) {
+    $('statusLine').innerHTML = `<span class="error-msg">${escapeHtml(err.message)}</span>`;
+  } finally {
+    isReducing = false;
+  }
+});
+
+$('clearBtn').addEventListener('click', () => {
+  $('content').value = '';
+  $('reducedText').value = '';
+  $('statusLine').innerHTML = '';
+  $('workings').hidden = true;
+});
+</script>
+</body>
+</html>

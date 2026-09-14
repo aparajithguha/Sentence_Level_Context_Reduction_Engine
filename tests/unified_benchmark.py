@@ -21,9 +21,16 @@ except ImportError:
     torch = None
 
 from scre.query_aware_reducer import SCRE
+# extract_json_workflows now lives in scre.units (shared with
+# scre_answer_engine.extractive_answer, which has the same need to read
+# SCRE's own JSON-rendered workflow blocks rather than re-parsing them as
+# prose) -- re-exported here so existing `from unified_benchmark import
+# extract_json_workflows` call sites keep working unchanged.
+from scre.units import extract_json_workflows  # noqa: F401
+
 
 class UnifiedBenchmark:
-    def __init__(self, keps_dir="keps", rfcs_dir="rfcs-master/text"):
+    def __init__(self, keps_dir="data/enhancements-master/keps", rfcs_dir="data/rfcs-master/text"):
         self.keps_dir = Path(keps_dir)
         self.rfcs_dir = Path(rfcs_dir)
         
@@ -221,36 +228,34 @@ class UnifiedBenchmark:
                 
         return preserved_count / len(expected_phrases)
 
-    def evaluate_reasoning_graph_recall(self, orig_doc_id: str, retrieved_context: str, retrieved_doc_id: str) -> float | None:
-        """Task 2: Evaluate the reasoning graph recall."""
-        # 1. Fetch original reasoning edges
-        c = self.scre.conn.cursor()
-        c.execute("SELECT source_idx, target_idx FROM reasoning_edges WHERE document_id = ?", (orig_doc_id,))
-        orig_edges = set(c.fetchall())
+    def evaluate_reasoning_graph_recall(self, orig_text: str, orig_analysis: dict, retrieved_context: str) -> float | None:
+        """Task 2: Evaluate the reasoning graph recall.
+
+        ``orig_analysis`` is ``self.scre.analyze(orig_text)``, precomputed
+        once per document in ``run_benchmark`` (SCRE holds no document
+        cache of its own, so this avoids re-parsing the same original
+        document for every query against it).
+        """
+        # 1. Original reasoning edges (precomputed)
+        orig_edges = set(orig_analysis["reasoning_edges"])
         if not orig_edges:
             return None # Skip documents without reasoning edges
-            
-        if retrieved_doc_id == orig_doc_id:
+
+        if retrieved_context.strip() == orig_text.strip():
             return 1.0
-            
-        # 2. Ingest retrieved context to construct retrieved reasoning graph (only if not already ingested)
-        c.execute("SELECT 1 FROM documents WHERE document_id = ?", (retrieved_doc_id,))
-        if not c.fetchone():
-            self.scre.ingest(retrieved_context, retrieved_doc_id)
-        
-        # 3. Fetch retrieved reasoning edges
-        c.execute("SELECT source_idx, target_idx FROM reasoning_edges WHERE document_id = ?", (retrieved_doc_id,))
-        retrieved_edges = set(c.fetchall())
-        
-        # 4. Map retrieved sentences to original sentences
-        c.execute("SELECT sentence_index, text FROM memory_units WHERE document_id = ? ORDER BY sentence_index", (orig_doc_id,))
-        orig_sents = c.fetchall()
-        c.execute("SELECT sentence_index, text FROM memory_units WHERE document_id = ? ORDER BY sentence_index", (retrieved_doc_id,))
-        ret_sents = c.fetchall()
-        
+
+        # 2. Analyze the retrieved context as its own self-contained text to
+        # build its reasoning graph (no ingestion/persistence involved).
+        ret_analysis = self.scre.analyze(retrieved_context)
+        retrieved_edges = set(ret_analysis["reasoning_edges"])
+
+        # 3. Map retrieved sentences to original sentences
+        orig_sents = [(u["sentence_index"], u["text"]) for u in orig_analysis["units"]]
+        ret_sents = [(u["sentence_index"], u["text"]) for u in ret_analysis["units"]]
+
         if not ret_sents:
             return 0.0
-            
+
         # Semantic sentence alignment
         orig_texts = [s[1] for s in orig_sents]
         ret_texts = [s[1] for s in ret_sents]
@@ -277,45 +282,52 @@ class UnifiedBenchmark:
                     
         return preserved_edges / len(orig_edges)
 
-    def evaluate_dependency_recall(self, orig_doc_id: str, retrieved_context: str, retrieved_doc_id: str) -> float | None:
-        """Task 3: Evaluate the dependency recall from workflow steps."""
-        c = self.scre.conn.cursor()
-        
-        # 1. Fetch original workflows and dependencies
-        c.execute("SELECT render_text FROM memory_units WHERE document_id = ? AND unit_type = 'workflow'", (orig_doc_id,))
+    def evaluate_dependency_recall(self, orig_text: str, orig_analysis: dict, retrieved_context: str) -> float | None:
+        """Task 3: Evaluate the dependency recall from workflow steps.
+
+        ``orig_analysis`` is ``self.scre.analyze(orig_text)``, precomputed
+        once per document in ``run_benchmark`` for the same reason as in
+        ``evaluate_reasoning_graph_recall``.
+        """
+        # 1. Original workflows and dependencies (precomputed)
         orig_workflows = []
-        for r in c.fetchall():
-            try:
-                orig_workflows.append(json.loads(r[0]))
-            except:
-                pass
-                
+        for u in orig_analysis["units"]:
+            if u["unit_type"] == "workflow":
+                try:
+                    orig_workflows.append(json.loads(u["render_text"]))
+                except Exception:
+                    pass
+
         orig_dependencies = []
         for wf in orig_workflows:
             steps = wf.get("steps", [])
             for i in range(len(steps) - 1):
                 orig_dependencies.append((steps[i].strip(), steps[i+1].strip()))
-                
+
         if not orig_dependencies:
             return None # Skip documents without dependencies
-            
-        if retrieved_doc_id == orig_doc_id:
+
+        if retrieved_context.strip() == orig_text.strip():
             return 1.0
-            
-        # Ingest retrieved context if not already ingested
-        c.execute("SELECT 1 FROM documents WHERE document_id = ?", (retrieved_doc_id,))
-        if not c.fetchone():
-            self.scre.ingest(retrieved_context, retrieved_doc_id)
-            
-        # 2. Fetch retrieved workflows
-        c.execute("SELECT render_text FROM memory_units WHERE document_id = ? AND unit_type = 'workflow'", (retrieved_doc_id,))
-        ret_workflows = []
-        for r in c.fetchall():
-            try:
-                ret_workflows.append(json.loads(r[0]))
-            except:
-                pass
-                
+
+        # 2. Extract workflows from the retrieved context two ways: directly
+        # from any embedded JSON blocks (how SCRE renders a preserved
+        # workflow -- see extract_json_workflows), and via re-analysis for
+        # prose-form workflows (how a non-SCRE strategy's raw retrieved
+        # sentences might still contain an intact "Header:\n1. ...\n2. ..."
+        # block verbatim from the original). Relying on re-analysis alone
+        # was the bug: it shreds SCRE's own JSON output via ordinary
+        # sentence segmentation and never re-detects it as a workflow,
+        # scoring 0% regardless of whether the workflow was preserved.
+        ret_workflows = extract_json_workflows(retrieved_context)
+        ret_analysis = self.scre.analyze(retrieved_context)
+        for u in ret_analysis["units"]:
+            if u["unit_type"] == "workflow":
+                try:
+                    ret_workflows.append(json.loads(u["render_text"]))
+                except Exception:
+                    pass
+
         ret_dependencies = []
         for wf in ret_workflows:
             steps = wf.get("steps", [])
@@ -360,36 +372,38 @@ class UnifiedBenchmark:
         strategies = ["A_Raw_Context", "B_BM25", "C_Vector_Search", "D_SCRE"]
         results = {}
         
-        # Build cached corpora and ingest original documents into SCRE database
+        # Build cached corpora, including each document's SCRE analysis
+        # (units + reasoning graph). SCRE itself holds no document cache --
+        # each `reduce`/`analyze` call is self-contained -- so this cache
+        # is what avoids re-parsing the same original document for every
+        # query against it, same as the BM25/vector setup below.
         corpora = {}
         for doc in self.dataset:
             doc_path = Path(doc["path"])
             doc_id = doc["doc_name"]
             if doc_id in corpora:
                 continue
-                
+
             text = doc_path.read_text(encoding="utf-8")
             sentences = [s.strip() for s in text.split('\n') if s.strip()]
-            
+
             # Setup BM25
             bm25 = None
             if BM25Okapi:
                 tokenized_corpus = [s.split() for s in sentences]
                 bm25 = BM25Okapi(tokenized_corpus)
-                
+
             # Setup Vector
             corpus_embs = None
             if self.embedder:
                 corpus_embs = self.embedder.encode(sentences, convert_to_tensor=True)
-                
-            # Ingest to SCRE
-            self.scre.ingest(text, doc_id)
-            
+
             corpora[doc_id] = {
                 "text": text,
                 "sentences": sentences,
                 "bm25": bm25,
-                "vector_embeddings": corpus_embs
+                "vector_embeddings": corpus_embs,
+                "analysis": self.scre.analyze(text),
             }
 
         # Row-per-query detail tracker for CSV results
@@ -413,7 +427,7 @@ class UnifiedBenchmark:
             # Count elements that are not None for averaging
             counts = {k: 0 for k in metrics_sums.keys()}
             
-            for q_idx, q in enumerate(self.dataset):
+            for q in self.dataset:
                 doc_id = q["doc_name"]
                 corpus = corpora[doc_id]
                 
@@ -434,7 +448,7 @@ class UnifiedBenchmark:
                         top_hits = sorted(hits[:max_sentences], key=lambda x: x['corpus_id'])
                         retrieved_context = "\n".join([corpus["sentences"][h['corpus_id']] for h in top_hits])
                 elif strategy == "D_SCRE":
-                    res = self.scre.retrieve(query=q["question"], document_id=doc_id, max_sentences=max_sentences, context_window=1)
+                    res = self.scre.reduce(text=corpus["text"], query=q["question"], max_sentences=max_sentences, context_window=1)
                     retrieved_context = res["context"]
                     
                 latency = (time.time() - start_time) * 1000
@@ -447,17 +461,11 @@ class UnifiedBenchmark:
                 # Compute Semantic Recall (Task 1)
                 semantic_recall = self.evaluate_semantic_recall(retrieved_context, q["expected_phrases"])
                 
-                # Ingest retrieved context temporarily for Graph Metrics (Task 2 & 3)
-                if strategy == "A_Raw_Context":
-                    retrieved_doc_id = doc_id
-                else:
-                    retrieved_doc_id = f"{doc_id}_{strategy}_{q_idx}_retrieved"
-                
                 # Compute Reasoning Graph Recall (Task 2)
-                graph_recall = self.evaluate_reasoning_graph_recall(doc_id, retrieved_context, retrieved_doc_id)
-                
+                graph_recall = self.evaluate_reasoning_graph_recall(corpus["text"], corpus["analysis"], retrieved_context)
+
                 # Compute Dependency Recall (Task 3)
-                dep_recall = self.evaluate_dependency_recall(doc_id, retrieved_context, retrieved_doc_id)
+                dep_recall = self.evaluate_dependency_recall(corpus["text"], corpus["analysis"], retrieved_context)
                 
                 # Map categories to metrics
                 q_metrics = {

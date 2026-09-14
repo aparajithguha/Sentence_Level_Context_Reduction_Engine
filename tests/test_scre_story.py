@@ -1,12 +1,20 @@
+import pytest
 from scre.query_aware_reducer import SCRE
 from pathlib import Path
 
+FILE_PATH = str(Path(__file__).parent.parent / "data" / "new_sample.txt")
+
+
+@pytest.mark.skipif(
+    not Path(FILE_PATH).exists(),
+    reason=f"fixture file missing: {FILE_PATH}",
+)
 def test_story_reduction():
     # Initialize the SCRE library
     engine = SCRE()
-    
+
     # Load the new story
-    file_path = "/Users/aparajithguha/Workspace/SCRE/data/new_sample.txt"
+    file_path = FILE_PATH
     story_text = Path(file_path).read_text()
     
     # Define the complex query

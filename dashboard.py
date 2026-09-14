@@ -275,16 +275,13 @@ with tab2:
     doc_path = Path(doc_info["path"])
     doc_text = doc_path.read_text(encoding="utf-8")
     
-    # Ingest document to ensure graph is in database
-    scre_instance.ingest(doc_text, selected_graph_doc)
-    
+    # Analyze the document in-memory (SCRE holds no document cache; this is
+    # a self-contained, stateless computation over this one document).
+    analysis = scre_instance.analyze(doc_text)
+
     # Generate the network graph
-    c = scre_instance.conn.cursor()
-    c.execute("SELECT sentence_index, text, unit_type FROM memory_units WHERE document_id = ?", (selected_graph_doc,))
-    nodes_data = c.fetchall()
-    
-    c.execute("SELECT source_idx, target_idx FROM reasoning_edges WHERE document_id = ?", (selected_graph_doc,))
-    edges_data = c.fetchall()
+    nodes_data = [(u["sentence_index"], u["text"], u["unit_type"]) for u in analysis["units"]]
+    edges_data = analysis["reasoning_edges"]
     
     if not edges_data:
         st.info("No reasoning connections found in this document. Select another KEP or RFC to explore reasoning paths.")
@@ -386,10 +383,7 @@ with tab3:
         selected_query = st.selectbox("Select question to test", questions_list)
         
     if st.button("▶ Run Context Reduction", type="primary"):
-        with st.spinner("Ingesting document & running retrieval — this may take a few seconds..."):
-            # Make sure document is ingested in SCRE database
-            scre_instance.ingest(doc_text, selected_doc)
-
+        with st.spinner("Running retrieval — this may take a few seconds..."):
             # 1. Fetch BM25
             sentences = [s.strip() for s in doc_text.split('\n') if s.strip()]
             tokenized_corpus = [s.split() for s in sentences]
@@ -409,9 +403,9 @@ with tab3:
                 vector_context = "\n".join([sentences[h['corpus_id']] for h in top_hits])
                 
             # 3. Fetch SCRE
-            scre_res = scre_instance.retrieve(
+            scre_res = scre_instance.reduce(
+                text=doc_text,
                 query=selected_query,
-                document_id=selected_doc,
                 max_sentences=max_sentences,
                 context_window=context_window,
                 min_tokens=min_tokens
