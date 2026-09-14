@@ -81,14 +81,18 @@ Each sentence is classified into one of the following semantic types using a **t
 | Type | Description | Example Signal |
 |------|-------------|----------------|
 | `decision` | Critical choices or selections | "chose", "decided", "selected" |
-| `constraint` | Requirements or limitations | "must", "cannot", "required" |
-| `workflow` | Ordered process steps | Markdown list following a header |
-| `fact` | Definitions or factual statements | Default fallback |
-| `reason` | Causal or justification statements | "because", "due to", "enables" |
+| `constraint` | Requirements or limitations | "must", "cannot", negation dependency (spaCy `neg`) |
+| `reason` | Causal or justification statements | "because" |
+| `implementation` | Concrete implementation detail | subject/object/relation triple present |
 | `goal` | Purpose or mission statements | "goal", "protect", "preserve" |
+| `workflow` | Ordered process steps | Markdown list following a header |
 | `task` | Action items or TODOs | "implement", "create", "benchmark" |
-| `outcome` | Results or consequences | "caused", "resulted", "outcome" |
+| `risk` | Downsides or trade-offs of a choice | "risk", "downside", "trade-off" |
+| `outcome` | Results or consequences | "resulted", "caused", "benefits", "consequence" |
+| `alternative` | Options considered and rejected | "alternative", "rejected in favor of" |
 | `comparison` | Trade-off or contrast | "versus", "faster than", "better" |
+| `question` | Open/unresolved questions | Ends in "?", "open question" |
+| `fact` | Definitions or factual statements | Default fallback |
 
 **Extraction Strategy Chain:**
 1. Regex-based SDLC tag matcher (`[DEC-01]`, `[CON-02]`, etc.)
@@ -315,6 +319,19 @@ streamlit run dashboard.py
 
 ---
 
+## 🎬 Showcase Demo (Web UI)
+
+A lightweight Flask app for demonstrating *how* SCRE reduces a single prompt/document — paste content, see the reduced output, and inspect exactly which sentences were kept or dropped and why. It also detects and displays whether the input is a structured/system prompt or an unstructured (paragraph/image) prompt, since SCRE's reduction strategy differs for each.
+
+```bash
+python -m showcase.server
+# open http://127.0.0.1:5050
+```
+
+`showcase/` is a pure consumer of `scre`'s public API (`SCRE` plus its documented submodule functions) — it never modifies the library itself, the same way any downstream application would use SCRE as a dependency.
+
+---
+
 ## 🧪 Running Benchmarks
 
 ```bash
@@ -334,11 +351,24 @@ streamlit run dashboard.py
 
 ```
 SCRE/
-├── scre/
-│   ├── query_aware_reducer.py      # Core engine: parsing, graphs, scoring, reduction
+├── scre/                           # The library. Stable public API: scre.query_aware_reducer.SCRE
+│   ├── query_aware_reducer.py      # SCRE facade class: orchestrates the pipeline below
+│   ├── units.py                    # SemanticUnit/WorkflowUnit data model + CATEGORY_WEIGHTS taxonomy
+│   ├── extraction.py               # Segmentation + regex/NLP extraction strategy chain
+│   ├── graph.py                    # Knowledge graph + reasoning graph construction
+│   ├── scoring.py                  # Query-aware hybrid scoring
+│   ├── selection.py                # Top-K selection, adjacent + reasoning-chain expansion
+│   ├── assembly.py                 # De-duplication, ordering, final context assembly
+│   ├── config.py                   # ScoringConfig thresholds
 │   ├── models.py                   # Process-wide singleton spaCy/embedder loaders
 │   ├── scre_pipeline.py            # End-to-end pipeline (reduce → answer)
-│   └── scre_answer_engine.py       # LLM integration (Ollama)
+│   └── scre_answer_engine.py       # LLM integration (Ollama) for answering/judging, not reduction
+│
+├── showcase/                       # Separate demo web app -- a *consumer* of scre's public API only,
+│   │                               # never modifies the library. Not part of the installable package.
+│   ├── reducer_adapter.py          # ExplainedReducer: reduce() with per-unit scoring + prompt-type detection
+│   ├── server.py                   # Flask app serving the demo UI + JSON API
+│   └── static/index.html           # Single-page UI: paste content, see the reduction + why
 │
 ├── tests/
 │   ├── unified_benchmark.py        # Research-grade evaluation suite (75 docs, 100 Q&As)
