@@ -1,7 +1,7 @@
 # 🌿 GRACE: Graph-aware Reasoning And Context Engine
 
 [![Python Version](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/)
-[![License](https://img.shields.io/badge/license-MIT-green)](#-license)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Status](https://img.shields.io/badge/status-Research--Grade-purple)](README.md)
 [![Document mode](https://img.shields.io/badge/document%20mode-SPS%2084.17%20(20--question%20sample)-brightgreen)](BENCHMARK_REPORT_sample.md)
 [![Prompt mode](https://img.shields.io/badge/prompt%20mode-behavior%20held%208%2F8%20valid%20cases-brightgreen)](BENCHMARK_PROMPT_MODE.md)
@@ -702,7 +702,7 @@ print(f"Saved {token_savings} tokens (~${token_savings * 0.000003:.4f} at GPT-4 
 
 ## 📝 License
 
-MIT License.
+MIT License — see [LICENSE](LICENSE).
 
 ---
 
