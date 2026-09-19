@@ -16,7 +16,7 @@ Everything below was measured; nothing is estimated. Where a result is weak, sma
 
 ## What "the agent behaves the same" means here
 
-Each test case is a real system prompt, a task, and automatic checks on one rule the agent cannot guess (for example "must write the file as a patch in this exact format"). We run an agent on the **original** prompt and on each **reduced** prompt and compare which checks pass.
+Each test case is a real system prompt, a task, and automatic checks on one rule the agent cannot guess (for example, that a file must be written as a patch in one exact format). We run an agent on the **original** prompt and on each **reduced** prompt and compare which checks pass.
 
 A case only counts if it is **valid**, a rule fixed before any run:
 
@@ -177,7 +177,7 @@ Sizes: each baseline is within a few percent of B2's size, and random drop ended
 
 ## Reproducing
 
-The prompts are third-party text and are not in this repository (`System-Prompts-main/`, `prompt_datasets/` and `data/enhancements-master/` are git-ignored). To reproduce, place them at:
+The prompts are third-party text and are not in this repository (`System-Prompts-main/`, `prompt_datasets/` and `data/enhancements-master/` are git-ignored, and `System-Prompts-main/` has no license; see the licensing note in the [README](README.md#prompt-mode)). To reproduce, place them at:
 
 ```
 System-Prompts-main/*.md
@@ -186,7 +186,7 @@ prompt_datasets/hf_system_prompt_library/system-prompts/json/*.json
 ```
 
 ```bash
-# no LLM, about 2 seconds
+# no LLM, about 1.5 seconds
 python -m tests.prompt_structural_check
 
 # behavior tests: need OPENROUTER_API_KEY in the environment or a git-ignored .env

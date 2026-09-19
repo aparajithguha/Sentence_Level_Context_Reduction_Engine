@@ -488,6 +488,8 @@ A carried-over strategy is only accepted if the saved run covered exactly the sa
 
 The prompts are third-party text and are not in this repository (`System-Prompts-main/`, `prompt_datasets/` and `data/enhancements-master/` are git-ignored); the folder layout is in [BENCHMARK_PROMPT_MODE.md](BENCHMARK_PROMPT_MODE.md#reproducing).
 
+> **Licensing of the test prompts.** The collection in `System-Prompts-main/` (a copy of `guy915/System-Prompts`) ships with no license, and the prompts in it belong to their vendors, so they are not free to reuse or redistribute. The MIT license of this repository covers only its own code. The prompts are fetched locally for testing and never committed; the reports here publish only sizes and pass/fail counts, no prompt text. Check the terms of any other prompt collection you add before sharing it.
+
 ```bash
 # No LLM, about 2 seconds: integrity, instruction survival and reduction over the whole corpus
 python -m tests.prompt_structural_check
