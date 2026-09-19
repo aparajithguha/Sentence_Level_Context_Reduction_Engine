@@ -12,6 +12,7 @@ from pathlib import Path
 
 from flask import Flask, jsonify, request, send_from_directory
 
+from showcase.prompt_adapter import STRATEGIES, PromptExplainer
 from showcase.reducer_adapter import ExplainedReducer, MODEL_NAMES
 
 app = Flask(__name__, static_folder=str(Path(__file__).parent / "static"), static_url_path="")
@@ -20,7 +21,17 @@ app = Flask(__name__, static_folder=str(Path(__file__).parent / "static"), stati
 # documented as stateless per-call, so reusing one instance (rather than
 # constructing a fresh one per request) is exactly the "long-running
 # process reuses one engine instance" pattern the library is designed for.
-_reducer = ExplainedReducer()
+# Built on first use: document mode loads spaCy and an embedding model,
+# which system-prompt mode never needs.
+_reducer: ExplainedReducer | None = None
+_prompt_explainer = PromptExplainer()
+
+
+def get_reducer() -> ExplainedReducer:
+    global _reducer
+    if _reducer is None:
+        _reducer = ExplainedReducer()
+    return _reducer
 
 
 @app.get("/")
@@ -35,7 +46,25 @@ def reduce_endpoint():
     if not content:
         return jsonify({"error": "content is required"}), 400
 
-    result = _reducer.reduce_with_explanation(content)
+    result = get_reducer().reduce_with_explanation(content)
+    return jsonify(result)
+
+
+@app.post("/api/reduce-prompt")
+def reduce_prompt_endpoint():
+    """System-prompt mode: redundancy-only, or task-based section dropping by word matching or an LLM."""
+    payload = request.get_json(silent=True) or {}
+    content = (payload.get("content") or "").strip()
+    if not content:
+        return jsonify({"error": "content is required"}), 400
+    strategy = payload.get("strategy", "off")
+    if strategy not in STRATEGIES:
+        return jsonify({"error": f"unknown strategy '{strategy}'"}), 400
+    model_key = payload.get("model", "qwen3")
+    if model_key not in MODEL_NAMES:
+        return jsonify({"error": f"unknown model '{model_key}'"}), 400
+
+    result = _prompt_explainer.reduce(content, task=payload.get("task") or "", strategy=strategy, model_key=model_key)
     return jsonify(result)
 
 
@@ -52,7 +81,7 @@ def understand_endpoint():
         return jsonify({"error": f"unknown model '{model_key}'"}), 400
 
     try:
-        result = _reducer.compare_understanding(original, reduced, model_key)
+        result = get_reducer().compare_understanding(original, reduced, model_key)
     except Exception as exc:  # Ollama not running, model not pulled, etc.
         return jsonify({"error": str(exc)}), 502
     return jsonify(result)
