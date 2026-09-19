@@ -7,9 +7,11 @@ existing integration tests in test_correctness.py.
 """
 from scre.extraction import (
     RegexKeyValueExtractor,
+    UnitExtractorStrategy,
     segment_text,
     build_semantic_state,
 )
+from scre.units import SemanticUnit
 
 
 # --- segment_text (nlp=None regex fallback) ---
@@ -185,3 +187,39 @@ def test_build_semantic_state_unmatched_sentence_yields_no_units():
     sentences = segment_text("Just a plain sentence with no label structure.", nlp=None)
     units = build_semantic_state(sentences, extractors)
     assert units == []
+
+
+# --- bullets are not workflows; numbered lists and "Steps:" headers are ---
+
+class _CatchAllFact(UnitExtractorStrategy):
+    # Stand-in for DefaultNLPExtractor (needs spaCy): every sentence becomes a fact unit.
+    def extract(self, index, sent):
+        return [SemanticUnit(index, sent.text, "fact")]
+
+
+def _workflows(text):
+    extractors = [RegexKeyValueExtractor(r"^(?:#+\s*)?([\w\s-]+):\s*(.*)"), _CatchAllFact()]
+    units = build_semantic_state(segment_text(text, nlp=None), extractors)
+    return [u for u in units if u.type == "workflow"], units
+
+
+def test_bullet_list_under_ordinary_header_is_not_a_workflow():
+    wfs, units = _workflows("Your responses should be:\n- Accurate\n- Concise\n- Friendly")
+    assert wfs == []
+    assert len(units) == 4  # header + three bullets, each kept as its own unit
+
+
+def test_bullet_list_under_steps_header_is_a_workflow():
+    wfs, _ = _workflows("Deployment steps:\n- Build\n- Push\n- Deploy")
+    assert len(wfs) == 1 and len(wfs[0].steps) == 3
+
+
+def test_numbered_list_under_ordinary_header_is_still_a_workflow():
+    wfs, _ = _workflows("Rules:\n1. Build\n2. Push")
+    assert len(wfs) == 1
+
+
+def test_orphan_bullets_are_not_an_unnamed_workflow():
+    wfs, units = _workflows("- one\n- two")
+    assert wfs == []
+    assert len(units) == 2

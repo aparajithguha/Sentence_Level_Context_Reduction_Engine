@@ -16,6 +16,8 @@ from typing import Any
 from .units import SemanticUnit, WorkflowUnit, CATEGORY_WEIGHTS
 from .utils import DummySentence, extract_entities, normalize_text
 
+_PROCEDURE_HEADER_RE = re.compile(r"\b(steps?|workflow|procedure|process|stages?|pipeline|phases?|sequence)\b", re.IGNORECASE)
+
 
 def segment_text(text: str, nlp: Any) -> list:
     """Split raw document text into sentence-like objects.
@@ -335,9 +337,14 @@ def build_semantic_state(sentences: list, extractors: list[UnitExtractorStrategy
                 current_h1 = clean_header
 
         is_list_item = lambda t: bool(re.match(r'^\d+\.\s|^[\*\-]\s', t)) and not bool(re.match(r'^(?:-\s*)?\[[A-Z]+-\d+\]', t))
+        is_numbered = lambda t: bool(re.match(r'^\d+\.\s', t))
         is_hr = lambda t: bool(re.match(r'^[-\*=_\s]{3,}$', t))
 
-        # Workflow Detection: Header followed by ordered procedural steps
+        # Workflow Detection: Header followed by ordered procedural steps.
+        # A numbered list is a procedure; a bullet list is only one when its
+        # header says so ("Steps:", "Workflow:", ...). Any other bullet list
+        # is an ordinary set of statements -- wrapping it as a JSON workflow
+        # misrepresents it as ordered steps and inflates short inputs.
         if i + 1 < len(sentences) and not is_list_item(text) and not is_hr(text) and is_list_item(sentences[i+1].text.strip()):
             header_text = text.rstrip(':').strip()
             steps = []
@@ -346,15 +353,18 @@ def build_semantic_state(sentences: list, extractors: list[UnitExtractorStrategy
                 steps.append(sentences[j].text.strip())
                 j += 1
 
-            workflow_text = text + "\n" + "\n".join(steps)
-            wf_unit = WorkflowUnit(i, header_text, steps, workflow_text)
-            wf_unit.context_header = current_h1
-            all_extracted_units.append(wf_unit)
-            i = j
-            continue
+            if is_numbered(steps[0]) or _PROCEDURE_HEADER_RE.search(header_text):
+                workflow_text = text + "\n" + "\n".join(steps)
+                wf_unit = WorkflowUnit(i, header_text, steps, workflow_text)
+                wf_unit.context_header = current_h1
+                all_extracted_units.append(wf_unit)
+                i = j
+                continue
 
-        # Fallback Workflow Detection: Encountered list items without a valid preceding header
-        if is_list_item(text):
+        # Fallback Workflow Detection: numbered list items without a valid
+        # preceding header. Bullets without a procedure header fall through
+        # to ordinary per-sentence extraction below.
+        if is_numbered(text):
             header_text = "Unnamed Workflow"
             steps = [text]
             j = i + 1

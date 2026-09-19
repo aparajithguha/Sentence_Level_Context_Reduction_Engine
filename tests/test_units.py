@@ -87,3 +87,10 @@ def test_category_weights_covers_core_types():
         assert expected_type in CATEGORY_WEIGHTS
     # Weights are meant as relative importance signals, not raw booleans.
     assert all(0.0 < w <= 1.0 for w in CATEGORY_WEIGHTS.values())
+
+
+def test_workflow_unit_render_text_keeps_non_ascii_readable():
+    wf = WorkflowUnit(0, "Plan’s steps", ["1. Don’t stop – ever"], "text")
+    assert "’" in wf.render_text and "–" in wf.render_text
+    assert "\\u" not in wf.render_text
+    assert json.loads(wf.render_text)["name"] == "Plan’s steps"

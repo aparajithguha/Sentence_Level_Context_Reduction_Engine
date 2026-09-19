@@ -126,3 +126,27 @@ def test_expand_reasoning_chains_with_no_edges_returns_selection_unchanged():
     selected = [all_units[1]]
     expanded = expand_reasoning_chains(selected, all_units, reasoning_graph={0: set(), 1: set(), 2: set()})
     assert {u.original_sentence_index for u in expanded} == {1}
+
+
+# --- expansion must be by position, not structural equality ---
+
+def _bare(index, text):
+    # Deliberately identical type/subject/relation/object across positions
+    # (as e.g. markdown headings are): SemanticUnit.__eq__ treats these as equal.
+    u = SemanticUnit(index, text, "fact")
+    u.score = 1.0
+    return u
+
+
+def test_expand_adjacent_context_keeps_structurally_equal_units_at_other_positions():
+    units = [_bare(0, "a"), _bare(1, "b"), _bare(2, "c")]
+    assert units[0] == units[1] == units[2]
+    out = expand_adjacent_context([units[1]], units, window=1)
+    assert [u.original_sentence_index for u in out] == [0, 1, 2]
+
+
+def test_expand_reasoning_chains_keeps_structurally_equal_units_at_other_positions():
+    units = [_bare(0, "a"), _bare(1, "b"), _bare(2, "c")]
+    graph = {0: {1}, 1: {0, 2}, 2: {1}}
+    out = expand_reasoning_chains([units[1]], units, graph)
+    assert [u.original_sentence_index for u in out] == [0, 1, 2]

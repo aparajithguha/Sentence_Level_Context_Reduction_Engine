@@ -162,7 +162,7 @@ class WorkflowUnit(SemanticUnit):
             "type": "workflow",
             "name": self.name,
             "steps": self.steps
-        }, indent=2)
+        }, indent=2, ensure_ascii=False)
 
     def __hash__(self):
         return hash((super().__hash__(), tuple(self.steps)))

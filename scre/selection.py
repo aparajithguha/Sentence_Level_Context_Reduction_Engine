@@ -193,9 +193,11 @@ def expand_reasoning_chains(
             expanded_indices.update(hop2)
 
     expanded = []
+    seen: set[int] = set()
     for unit in all_units:
-        if unit.original_sentence_index in expanded_indices and unit not in expanded:
+        if unit.original_sentence_index in expanded_indices and id(unit) not in seen:
             expanded.append(unit)
+            seen.add(id(unit))
 
     return sorted(expanded, key=lambda x: x.original_sentence_index)
 
@@ -218,11 +220,11 @@ def expand_adjacent_context(
             target_indices.add(idx + w)
 
     expanded = list(selected)
-    existing = {u for u in selected}
+    existing = {id(u) for u in selected}
 
     for u in all_units:
-        if u.original_sentence_index in target_indices and u not in existing:
+        if u.original_sentence_index in target_indices and id(u) not in existing:
             expanded.append(u)
-            existing.add(u)
+            existing.add(id(u))
 
     return sorted(expanded, key=lambda x: x.original_sentence_index)
