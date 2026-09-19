@@ -108,7 +108,7 @@ try:
     )
     from .scoring import get_query_features, score_semantic_unit
     from .selection import select_semantic_units, expand_adjacent_context, expand_reasoning_chains
-    from .assembly import build_compressed_context
+    from .assembly import build_compressed_context, drop_orphan_headings
 except ImportError:
     import models as _models
     from config import ScoringConfig, PromptConfig
@@ -131,7 +131,7 @@ except ImportError:
     )
     from scoring import get_query_features, score_semantic_unit
     from selection import select_semantic_units, expand_adjacent_context, expand_reasoning_chains
-    from assembly import build_compressed_context
+    from assembly import build_compressed_context, drop_orphan_headings
 
 # Enforce strict offline mode now that the model is cached.
 # This prevents HF Hub update checks and silences token warnings.
@@ -467,6 +467,8 @@ class SCRE:
                 selected_units = expand_adjacent_context(selected_units, all_extracted_units, context_window)
             selected_units = expand_reasoning_chains(selected_units, all_extracted_units, reasoning_graph)
 
+        # A heading pulled in by adjacency but with nothing selected under it is noise, not context.
+        selected_units = drop_orphan_headings(selected_units, all_extracted_units)
         reduced_text = build_compressed_context(selected_units)
         return {
             "context": reduced_text,

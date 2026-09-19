@@ -9,7 +9,7 @@
         "dependency_recall": 1.0,
         "compression_ratio": 0.0,
         "context_size_tokens": 4953.0,
-        "latency_ms": 0.0012,
+        "latency_ms": 0.0009,
         "sps": 98.42,
         "ser": 215.27
     },
@@ -23,7 +23,7 @@
         "dependency_recall": 0.0,
         "compression_ratio": 0.9655,
         "context_size_tokens": 90.48,
-        "latency_ms": 0.584,
+        "latency_ms": 0.5178,
         "sps": 76.17,
         "ser": 7617.0
     },
@@ -37,7 +37,7 @@
         "dependency_recall": 0.0,
         "compression_ratio": 0.9668,
         "context_size_tokens": 86.71,
-        "latency_ms": 70.9088,
+        "latency_ms": 65.6162,
         "sps": 78.25,
         "ser": 7825.0
     },
@@ -49,11 +49,11 @@
         "general_retention": 0.4,
         "reasoning_graph_recall": 0.1427,
         "dependency_recall": 0.5,
-        "compression_ratio": 0.8447,
-        "context_size_tokens": 438.75,
-        "latency_ms": 2629.7213,
+        "compression_ratio": 0.8459,
+        "context_size_tokens": 434.2,
+        "latency_ms": 2558.4728,
         "sps": 84.17,
-        "ser": 2078.27
+        "ser": 2100.05
     },
     "E_LangChain_LLMExtract": {
         "constraint_recall": 0.9333,

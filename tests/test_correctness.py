@@ -294,3 +294,89 @@ def test_non_utf8_decodable_content_does_not_crash_reduce():
     engine = SCRE()
     result = engine.reduce(text=text, query="What does this say?", max_sentences=4, context_window=0)
     assert isinstance(result["context"], str)
+
+
+# ---- document-mode output has no stray or empty headings -------------------------------------
+ADR = """# ADR-007: Database Selection for Event Processing Service
+
+## Background
+
+The Event Processing Service needs a persistent store for incoming telemetry events
+from 400+ edge devices. Events arrive at ~12,000 per second at peak load.
+
+## Goals
+
+The selected database must handle high write throughput without sacrificing read
+latency for dashboards. It must support horizontal scaling as device count grows.
+
+## Non-Goals
+
+We are not building a data warehouse. Long-term analytics will be handled by a
+separate pipeline. This decision covers only the hot-path event store.
+
+## Options Considered
+
+We evaluated three candidates: PostgreSQL, Apache Cassandra, and Redis Streams.
+
+PostgreSQL was attractive due to developer familiarity and strong ACID guarantees.
+However, under write-heavy load testing it saturated at 4,200 writes/sec on our
+target hardware, which is well below the 12,000/sec peak requirement.
+
+Apache Cassandra was evaluated for its linear horizontal scaling and
+write-optimized LSM-tree storage engine. It achieved 18,500 writes/sec in our
+benchmark, exceeding the peak requirement by 54%. Read latency for point lookups
+was 3.2ms at P99, which is acceptable for dashboard refresh at 5-second intervals.
+
+Redis Streams was fast (>50,000 writes/sec) but offers no durability guarantees
+without AOF persistence, which halves throughput. It also lacks the query
+flexibility needed for ad-hoc dashboard filtering.
+
+## Decision
+
+We selected Apache Cassandra as the event store because it is the only candidate
+that satisfies both the write throughput requirement (12,000/sec) and the read
+latency requirement (P99 < 10ms) simultaneously.
+
+## Constraints
+
+All writes must use the LOCAL_QUORUM consistency level to prevent data loss during
+a single datacenter outage. Read operations may use LOCAL_ONE for lower latency.
+Cassandra cluster must have a minimum of 3 nodes per datacenter.
+
+## Implementation Plan
+
+1. Provision a 3-node Cassandra cluster using Terraform in us-east-1.
+2. Define the keyspace with NetworkTopologyStrategy and replication factor 3.
+3. Create the events table with a composite partition key (device_id, date_bucket).
+4. Implement the writer service using the DataStax Java driver with async batching.
+5. Set up Prometheus JMX exporter for Cassandra metrics collection.
+6. Validate throughput under simulated peak load before promoting to production.
+
+## Alternatives Rejected
+
+PostgreSQL: Failed throughput benchmark (4,200/sec vs 12,000/sec required).
+Redis Streams: No durable persistence at required throughput without 50% penalty.
+
+## Risks
+
+If device count grows beyond 3× current projections, the cluster will require
+re-partitioning. This is a known operational cost of Cassandra at scale.
+"""
+
+
+def test_output_has_no_empty_headings_and_starts_with_the_title_prefix():
+    """Regression: a ``## Goals`` heading was emitted *before* the ``[document title]`` prefix (the prefix
+    was skipped for every '#' line), and headings pulled in by adjacency were emitted with nothing under
+    them (a trailing ``## Alternatives Rejected`` / ``## Risks``)."""
+    import re
+    engine = SCRE()
+    context = engine.reduce(ADR, "Why was Apache Cassandra selected, and what are the write constraints?",
+                            max_sentences=6, context_window=1)["context"]
+    lines = [l for l in context.split("\n") if l.strip()]
+    assert lines[0].startswith("[ADR-007"), lines[0]
+    level = lambda l: len(re.match(r"#+", l).group(0))
+    for i, line in enumerate(lines):
+        if re.match(r"#{1,6}\s", line):
+            assert i + 1 < len(lines), f"empty heading at the end: {line!r}"
+            following = lines[i + 1]
+            assert not (re.match(r"#{1,6}\s", following) and level(following) <= level(line)), f"empty heading: {line!r}"

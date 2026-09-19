@@ -31,7 +31,7 @@ from scre.graph import (
 )
 from scre.scoring import get_query_features, score_semantic_unit
 from scre.selection import select_semantic_units, expand_adjacent_context, expand_reasoning_chains
-from scre.assembly import build_compressed_context
+from scre.assembly import build_compressed_context, drop_orphan_headings
 from scre.utils import DummySentence, compute_idf, estimate_tokens
 from scre.scre_answer_engine import answer_with_ollama, judge_meaning_retention
 
@@ -230,6 +230,7 @@ class ExplainedReducer:
                 selected_units = expand_adjacent_context(selected_units, all_units, context_window)
             selected_units = expand_reasoning_chains(selected_units, all_units, reasoning_graph)
 
+        selected_units = drop_orphan_headings(selected_units, all_units)
         reduced_text = build_compressed_context(selected_units)
 
         # By index, not unit identity -- SemanticUnit.__eq__ compares

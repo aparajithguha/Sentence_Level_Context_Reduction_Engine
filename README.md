@@ -306,14 +306,14 @@ Summarized above; the full report ([BENCHMARK_PROMPT_MODE.md](BENCHMARK_PROMPT_M
 | **Reasoning Recall** | 100.0% | 100.0% | 100.0% | 100.0% | **100.0%** |
 | **Reasoning Graph Recall** | 100.0% | 0.0% | 0.9% | 6.7% | **14.3%** |
 | **Dependency Recall** | 100.0% | 0.0% | 0.0% | 11.6% | **50.0%** |
-| **Compression Ratio** | 0.0% | 96.5% | 96.7% | 85.1% | **84.5%** |
+| **Compression Ratio** | 0.0% | 96.5% | 96.7% | 85.1% | **84.6%** |
 | **Avg Context Tokens** | 4,953 | 90 | 87 | 439 | **439** |
 | **Latency (ms)** | 0.001 | 0.58 | 70.91 | 87,450 | **2,630** |
 | **SER (Score/Token)** | 215 | 7,617 | 7,825 | 2,074 | **2,078** |
 
 #### Key Findings
 
-- **GRACE and the LLM-extraction baseline are tied on SPS** (84.17 vs 84.00; on 20 questions a gap this size is noise). GRACE gets there with no generative model, at **33x lower latency** (2.6s vs 87.5s per query).
+- **GRACE and the LLM-extraction baseline are tied on SPS** (84.17 vs 84.00; on 20 questions a gap this size is noise). GRACE gets there with no generative model, at **34x lower latency** (2.6s vs 87.5s per query).
 - **GRACE preserves structural relationships the LLM baseline misses**: Reasoning Graph Recall 14.3% vs 6.7% (2.1x) and Dependency Recall 50.0% vs 11.6% (4.3x) — an LLM asked to "extract relevant sentences" optimizes for topical relevance, not for keeping a decision linked to its reason or a workflow step linked to its predecessor.
 - **BM25 and Vector Search destroy reasoning graph structure** — Reasoning Graph Recall is 0.0% and 0.9% because they return disconnected sentences without traversing causal chains.
 - **Raw Context scores 98.4 SPS** but at 4,953 average tokens it provides no compression benefit; GRACE keeps 439 (84% compression).
