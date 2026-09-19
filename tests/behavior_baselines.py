@@ -10,6 +10,11 @@ or a standard selection method, explains B2's result. Every arm is cut to B2's c
   vector       same with sentence-embedding cosine similarity (all-mpnet-base-v2); no guards
   selective    Selective Context (Li et al. 2023): GPT-2 self-information per sentence, drop the most
                predictable sentences first; task-agnostic, ignores structure, as published
+  llmlingua2   LLMLingua-2 (Pan et al. 2024): a trained token classifier drops the tokens it scores as
+               unnecessary; task-agnostic, rewrites the text (weights: the meetingbank XLM-RoBERTa-large model)
+  longllmlingua LongLLMLingua (Jiang et al. 2024): question-aware, keeps the prompt parts and tokens whose
+               perplexity drops most given the task. Scorer is GPT-2 (the only local causal LM), not the
+               Llama-2-7B of the paper, so this is a weak version of the method. Prompt order is kept.
 
 random / bm25 / vector choose among the same sections (non-global, >=400 chars) and keep everything else, so they
 inherit our parser and the global tier -- a generous setup that isolates the selection signal. Selective Context
@@ -52,6 +57,7 @@ B2_FILES = {
 }
 EMBED_MODEL = "sentence-transformers/all-mpnet-base-v2"
 GPT2 = "openai-community/gpt2"
+LLMLINGUA2 = ROOT / "models" / "llmlingua-2-xlm-roberta-large-meetingbank"   # git-ignored; the name must contain "xlm-roberta-large"
 
 
 def b2_prompt(cid: str) -> str:
@@ -185,8 +191,95 @@ def selective_context(text: str, target: int, task: str = "") -> str:
     return "".join(text[units[k][0]:units[k][1]] for k in sorted(keep)).rstrip()
 
 
+_lingua: dict = {}
+
+
+def _compressor(kind: str):
+    os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+    if kind not in _lingua:
+        from llmlingua import PromptCompressor
+        if kind == "llmlingua2":
+            _lingua[kind] = PromptCompressor(model_name=str(LLMLINGUA2), use_llmlingua2=True, device_map="cpu")
+        else:
+            _lingua[kind] = PromptCompressor(model_name=GPT2, device_map="cpu")
+            _legacy_kv_cache(_lingua[kind].model)
+    return _lingua[kind]
+
+
+def _legacy_kv_cache(model) -> None:
+    """llmlingua 0.2.2 slices the key/value cache as a list of (key, value) pairs; transformers 5 hands back a Cache
+    object instead. Convert at the model boundary so the library's own code runs unchanged."""
+    from transformers import DynamicCache
+    forward = model.forward
+
+    def adapted(*args, past_key_values=None, **kwargs):
+        if isinstance(past_key_values, (list, tuple)):
+            cache = DynamicCache()
+            for i, (k, v) in enumerate(past_key_values):
+                cache.update(k, v, i)
+            past_key_values = cache
+        out = forward(*args, past_key_values=past_key_values, **kwargs)
+        if out.past_key_values is not None:
+            out.past_key_values = [(layer[0], layer[1]) for layer in out.past_key_values]
+        return out
+
+    model.forward = adapted
+
+
+def _fit_rate(compress, target: int, size: int, tol: float = 0.02) -> str:
+    """Search the compression rate until the output is within ``tol`` of ``target`` characters (never above target + tol).
+    LLMLingua's rate is in tokens and it keeps some tokens regardless, so the character size needs this correction."""
+    lo, hi, best = 0.03, 1.0, None
+    rate = min(1.0, target / size)
+    for _ in range(9):
+        out = compress(rate)
+        n = len(out)
+        if n <= target * (1 + tol) and (best is None or abs(n - target) < abs(len(best) - target)):
+            best = out
+        if abs(n - target) <= tol * target and n <= target * (1 + tol):
+            break
+        lo, hi = (rate, hi) if n < target else (lo, rate)
+        rate = (lo + hi) / 2
+    return (best if best is not None else out).rstrip()
+
+
+def llmlingua2(text: str, target: int, task: str = "") -> str:
+    c = _compressor("llmlingua2")
+    return _fit_rate(lambda r: c.compress_prompt_llmlingua2(
+        text, rate=r, force_tokens=["\n", ".", "!", "?", ","], drop_consecutive=True)["compressed_prompt"], target, len(text))
+
+
+def _chunks(text: str, limit: int = 2500) -> list[str]:
+    """Paragraphs merged up to ``limit`` characters (GPT-2 reads 1,024 tokens); an oversized paragraph is cut at lines."""
+    parts: list[str] = []
+    for para in text.split("\n\n"):
+        while len(para) > limit:
+            cut = para.rfind("\n", 0, limit)
+            cut = cut if cut > 0 else limit
+            parts.append(para[:cut])
+            para = para[cut:].lstrip("\n")
+        parts.append(para)
+    out: list[str] = []
+    for p_ in parts:
+        if out and len(out[-1]) + len(p_) + 2 <= limit:
+            out[-1] += "\n\n" + p_
+        else:
+            out.append(p_)
+    return out
+
+
+def longllmlingua(text: str, target: int, task: str) -> str:
+    c = _compressor("longllmlingua")
+    ctx = _chunks(text)
+    return _fit_rate(lambda r: c.compress_prompt(
+        ctx, question=task, rate=r, condition_in_question="after_condition", reorder_context="original",
+        dynamic_context_compression_ratio=0.3, condition_compare=True, context_budget="+100",
+        rank_method="longllmlingua")["compressed_prompt"], target, len(text))
+
+
 ARMS = {"truncation": truncate, "random": random_sections, "bm25": bm25_sections,
-        "vector": vector_sections, "selective": selective_context}
+        "vector": vector_sections, "selective": selective_context,
+        "llmlingua2": llmlingua2, "longllmlingua": longllmlingua}
 
 
 # ----------------------------------------------------------------- run

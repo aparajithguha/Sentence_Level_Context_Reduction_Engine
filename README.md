@@ -211,7 +211,7 @@ You can also choose sections yourself: `PromptReducer().outline(text)` lists the
 |---|---|
 | **No task, no LLM** (structural check, 1,690 prompts) | Removes **2.6% of characters** (8.0% on prompts of 8K characters or more). No integrity failure; 1,757 of 1,765 instruction lines survive word for word |
 | **A task + an LLM choosing sections** (behavior test, 8 valid cases) | **26% to 77% removed, mean 56%**, with the agent's checks unchanged on **8 of 8** cases |
-| **The same size, chosen without the guards** | Truncation held on 3 of 8, random section drop 2 of 8, BM25 5 of 8, vector search 5 of 8, Selective Context 6 of 8 |
+| **The same size, chosen without the guards** | Truncation held on 3 of 8, random section drop 2 of 8, BM25 5 of 8, vector search 5 of 8, Selective Context 6 of 8, LLMLingua-2 4 of 8, LongLLMLingua 3 of 8 |
 
 Read the caveats before quoting these: the test set is small, uses one agent model, and the guards were tuned on some of the same cases. The full method, all cases and every limitation are in [BENCHMARK_PROMPT_MODE.md](BENCHMARK_PROMPT_MODE.md).
 
@@ -499,7 +499,7 @@ python -m tests.behavior_pilot          # round 1: approaches A, B, C, D and con
 python -m tests.behavior_round2         # round 2: A, C, A+C
 python -m tests.behavior_round3         # round 3: B2 (full section text + step plan + guards)
 python -m tests.behavior_round4         # round 4: fresh prompts
-python -m tests.behavior_baselines      # same-size baselines: truncation, random, BM25, vector, Selective Context
+python -m tests.behavior_baselines      # same-size baselines: truncation, random, BM25, vector, Selective Context, LLMLingua-2, LongLLMLingua (needs llmlingua and local weights; see BENCHMARK_PROMPT_MODE.md)
 ```
 
 ### Unit tests
@@ -659,7 +659,7 @@ print(f"Saved {token_savings} tokens (~${token_savings * 0.000003:.4f} at GPT-4 
 - **Without a task and an LLM, the safe reduction is small** (about 3% of characters across 1,690 real prompts). Most of a real system prompt is distinct behavior, not repetition.
 - **Rewriting wording** (tightening) saved 8% to 20% in tests and needs an LLM; it is a benchmark arm, not part of the library.
 - **Document mode** is benchmarked on a sample of technical design documents and is not tuned for other genres.
-- **Not yet compared against** LLMLingua-2 and LongLLMLingua.
+- **The LLMLingua comparison is partial.** LLMLingua-2 held on 4 of 8 cases and LongLLMLingua on 3 of 8 at B2's size, but LongLLMLingua ran with GPT-2 as its scorer instead of the paper's Llama-2-7B, so it is a weak version of that method.
 
 ---
 
@@ -677,7 +677,8 @@ print(f"Saved {token_savings} tokens (~${token_savings * 0.000003:.4f} at GPT-4 
 - [x] Prompt-mode behavior benchmark with valid-case controls and same-size baselines
 - [x] Prompt mode in the showcase web UI
 - [x] Light install: prompt mode needs only the standard library
-- [ ] Compare against LLMLingua-2 and LongLLMLingua
+- [x] Compare against LLMLingua-2 and LongLLMLingua (LongLLMLingua with a GPT-2 scorer)
+- [ ] Re-run LongLLMLingua with a Llama-2-7B-class scorer
 - [ ] A larger, harder behavior test set with held-out prompts and more than one agent model
 - [ ] Multi-turn and tool-call-trace behavior checks
 - [ ] LangChain / LlamaIndex retriever integration

@@ -60,3 +60,7 @@ prompt_datasets/
 
 # Local tooling config (machine-specific paths)
 .claude/
+
+# Local model weights (multi-GB; never commit)
+models/
+*.safetensors
