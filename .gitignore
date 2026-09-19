@@ -53,3 +53,10 @@ tests/semantic_preservation_history.json
 
 # Scratch
 scratch/
+
+# Third-party system prompt datasets (provenance/licensing unclear; never commit)
+System-Prompts-main/
+prompt_datasets/
+
+# Local tooling config (machine-specific paths)
+.claude/
