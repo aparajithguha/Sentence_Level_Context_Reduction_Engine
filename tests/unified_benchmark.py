@@ -6,7 +6,7 @@ import re
 import csv
 import random
 from pathlib import Path
-from typing import Dict, List, Any, Tuple, Set
+from typing import Dict, List, Any
 
 # Ensure path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -102,6 +102,31 @@ from scre.query_aware_reducer import SCRE
 # prose) -- re-exported here so existing `from unified_benchmark import
 # extract_json_workflows` call sites keep working unchanged.
 from scre.units import extract_json_workflows  # noqa: F401
+
+
+def load_carried_strategies(names, question_ids, json_file, csv_file, history_file):
+    """Reuse saved results for strategies that are not re-run (e.g. an LLM baseline that takes ~30 minutes).
+
+    Safe only when the saved run covered exactly the same questions: anything else raises, so a stale or
+    mismatched row can never be silently mixed into a new table. Returns ``(results, csv_rows)``; each
+    result carries ``carried_over_from`` (the timestamp of the run it came from) so the report can flag it.
+    """
+    saved = json.loads(Path(json_file).read_text())
+    rows = list(csv.DictReader(open(csv_file, newline="", encoding="utf-8")))
+    history = json.loads(Path(history_file).read_text()) if os.path.exists(history_file) else []
+    want = set(question_ids)
+    results, csv_rows = {}, []
+    for name in names:
+        mine = [r for r in rows if r["strategy"] == name]
+        if name not in saved or {r["question_id"] for r in mine} != want:
+            raise ValueError(f"cannot carry over {name}: the saved run does not cover exactly these questions")
+        entry = dict(saved[name])
+        origin = next((h["timestamp"] for h in reversed(history) if name in h["results"]
+                       and not h["results"][name].get("carried_over_from")), None)
+        entry["carried_over_from"] = entry.get("carried_over_from") or origin or "an earlier run"
+        results[name] = entry
+        csv_rows += mine
+    return results, csv_rows
 
 
 class UnifiedBenchmark:
@@ -456,7 +481,7 @@ class UnifiedBenchmark:
                     
         return preserved_count / len(orig_dependencies)
 
-    def run_benchmark(self, max_sentences=6, sample_size=None, sample_seed=42):
+    def run_benchmark(self, max_sentences=6, sample_size=None, sample_seed=42, include_llm_strategies=True, carry_over=()):
         """Run the evaluation suite.
 
         Args:
@@ -471,6 +496,14 @@ class UnifiedBenchmark:
                 (see "E_LangChain_LLMExtract") where 100 calls is slow to
                 iterate on.
             sample_seed: Fixed seed so the same subset is reproducible.
+            include_llm_strategies: If False, skip the LLM-backed baselines
+                (LangChain-style extraction, LLMLingua-2) regardless of
+                whether their models are available -- lets the full-size
+                Raw/BM25/Vector/SCRE suite run without paying for 100 LLM
+                calls when only those four need refreshing.
+            carry_over: Names of strategies to take from the previously saved run of
+                the same suite (same sample, same questions) instead of re-running them,
+                marked in the report. See ``load_carried_strategies``.
         """
         eval_dataset = self.dataset
         if sample_size is not None and sample_size < len(self.dataset):
@@ -480,10 +513,11 @@ class UnifiedBenchmark:
               f"questions={len(eval_dataset)}/{len(self.dataset)})...")
 
         strategies = ["A_Raw_Context", "B_BM25", "C_Vector_Search", "D_SCRE"]
-        if ollama is not None:
-            strategies.append("E_LangChain_LLMExtract")
-        if self.llmlingua:
-            strategies.append("F_LLMLingua2")
+        if include_llm_strategies:
+            if ollama is not None:
+                strategies.append("E_LangChain_LLMExtract")
+            if self.llmlingua:
+                strategies.append("F_LLMLingua2")
         results = {}
         
         # Build cached corpora, including each document's SCRE analysis
@@ -659,6 +693,13 @@ class UnifiedBenchmark:
 
         is_sample = len(eval_dataset) < len(self.dataset)
         n_docs = len({q["doc_name"] for q in eval_dataset})
+        if carry_over:
+            suffix = "_sample" if is_sample else ""
+            carried, carried_rows = load_carried_strategies(
+                carry_over, [q["question_id"] for q in eval_dataset], f"tests/benchmark_results{suffix}.json",
+                f"tests/benchmark_results{suffix}.csv", f"tests/benchmark_history{suffix}.json")
+            results.update(carried)
+            csv_records.extend(carried_rows)
         self._save_results(results, csv_records, n_docs=n_docs, n_questions=len(eval_dataset), is_sample=is_sample)
         return results
 
@@ -688,7 +729,14 @@ class UnifiedBenchmark:
 """
         for strategy, metrics in results.items():
             name = strategy.split('_', 1)[-1].replace('_', ' ') if '_' in strategy else strategy
+            if metrics.get("carried_over_from"):
+                name += " †"
             markdown_snippet += f"| **{name}** | {metrics['sps']:.2f} | {metrics['constraint_recall']:.2%} | {metrics['decision_traceability']:.2%} | {metrics['workflow_integrity']:.2%} | {metrics['reasoning_recall']:.2%} | {metrics['reasoning_graph_recall']:.2%} | {metrics['dependency_recall']:.2%} | {metrics['ser']:.2f} | {metrics['compression_ratio']:.2%} | {metrics['latency_ms']:.1f}ms |\n"
+
+        carried_notes = sorted({m["carried_over_from"] for m in results.values() if m.get("carried_over_from")})
+        if carried_notes:
+            markdown_snippet += (f"\n† Not re-run: taken from the saved run of {', '.join(carried_notes)} on the same "
+                                 f"{n_questions} questions. It reads the raw documents and does not depend on SCRE's code.\n")
 
         original_content = ""
         if os.path.exists(report_file):
@@ -730,7 +778,7 @@ class UnifiedBenchmark:
         with open(history_file, "w") as f:
             json.dump(history, f, indent=4)
 
-        print(f"Results successfully written to:")
+        print("Results successfully written to:")
         print(f" - {report_file}")
         print(f" - {csv_file}")
         print(f" - {json_file}")
@@ -739,4 +787,8 @@ class UnifiedBenchmark:
 if __name__ == "__main__":
     bench = UnifiedBenchmark()
     sample_size = int(os.environ.get("SCRE_BENCH_SAMPLE", "20"))
-    bench.run_benchmark(max_sentences=6, sample_size=sample_size)
+    bench.run_benchmark(
+        max_sentences=6, sample_size=sample_size,
+        include_llm_strategies=os.environ.get("SCRE_BENCH_SKIP_LLM") != "1",
+        carry_over=[n for n in os.environ.get("SCRE_BENCH_CARRY", "").split(",") if n],
+    )

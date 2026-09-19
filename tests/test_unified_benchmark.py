@@ -7,7 +7,11 @@ full root-cause explanation). No spaCy pipeline or embedder needed.
 """
 import json
 
-from tests.unified_benchmark import extract_json_workflows
+import csv
+
+import pytest
+
+from tests.unified_benchmark import extract_json_workflows, load_carried_strategies
 
 
 def _workflow_json(name="Deploy", steps=None):
@@ -64,3 +68,39 @@ def test_extract_json_workflows_handles_nested_braces_in_step_text():
     found = extract_json_workflows(text)
     assert len(found) == 1
     assert found[0]["steps"][0] == "1. Run f({x: 1})"
+
+
+
+# ---- carrying a saved strategy into a new run -------------------------------------------------
+def _saved_run(tmp_path, questions=("q1", "q2")):
+    jf, cf, hf = tmp_path / "r.json", tmp_path / "r.csv", tmp_path / "h.json"
+    jf.write_text(json.dumps({"E_LLM": {"sps": 84.0}, "D_SCRE": {"sps": 83.0}}))
+    with cf.open("w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=["strategy", "question_id", "semantic_recall"])
+        w.writeheader()
+        w.writerows([{"strategy": s, "question_id": q, "semantic_recall": "1.0"} for s in ("E_LLM", "D_SCRE") for q in questions])
+    hf.write_text(json.dumps([{"timestamp": "2026-09-14 20:52:40", "results": {"E_LLM": {"sps": 84.0}, "D_SCRE": {"sps": 83.0}}}]))
+    return str(jf), str(cf), str(hf)
+
+
+def test_carried_strategy_keeps_its_metrics_rows_and_origin(tmp_path):
+    jf, cf, hf = _saved_run(tmp_path)
+    results, rows = load_carried_strategies(["E_LLM"], ["q1", "q2"], jf, cf, hf)
+    assert results["E_LLM"]["sps"] == 84.0 and results["E_LLM"]["carried_over_from"] == "2026-09-14 20:52:40"
+    assert [r["strategy"] for r in rows] == ["E_LLM", "E_LLM"] and "D_SCRE" not in results
+
+
+def test_carrying_over_refuses_a_run_that_covered_different_questions(tmp_path):
+    jf, cf, hf = _saved_run(tmp_path)
+    with pytest.raises(ValueError, match="does not cover exactly"):
+        load_carried_strategies(["E_LLM"], ["q1", "q3"], jf, cf, hf)
+    with pytest.raises(ValueError):
+        load_carried_strategies(["F_missing"], ["q1", "q2"], jf, cf, hf)
+
+
+def test_a_carried_row_stays_attributed_to_its_original_run(tmp_path):
+    jf, cf, hf = _saved_run(tmp_path)
+    first, _ = load_carried_strategies(["E_LLM"], ["q1", "q2"], jf, cf, hf)
+    (tmp_path / "r.json").write_text(json.dumps({"E_LLM": first["E_LLM"]}))            # saved again after being carried
+    again, _ = load_carried_strategies(["E_LLM"], ["q1", "q2"], jf, cf, hf)
+    assert again["E_LLM"]["carried_over_from"] == "2026-09-14 20:52:40"
