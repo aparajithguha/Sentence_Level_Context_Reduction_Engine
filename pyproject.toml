@@ -11,11 +11,12 @@ requires-python = ">=3.9"
 authors = [
     { name = "Aparajith Guha" }
 ]
-dependencies = [
-    "spacy>=3.0.0",
-]
+dependencies = []   # prompt mode (PromptReducer / reduce_prompt) needs only the standard library
 
 [project.optional-dependencies]
+document = [
+    "spacy>=3.0.0"          # document mode (SCRE.reduce); without it that mode falls back to regex-only
+]
 ml = [
     "sentence-transformers",
     "torch",
@@ -27,7 +28,12 @@ llm = [
 eval = [
     "rank_bm25"
 ]
+showcase = [
+    "flask"
+]
 all = [
+    "spacy>=3.0.0",
+    "flask",
     "sentence-transformers",
     "torch",
     "tiktoken",

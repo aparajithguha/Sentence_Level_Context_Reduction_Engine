@@ -79,3 +79,37 @@ class ScoringConfig:
     # was found to link unrelated sentences on structured, densely-packed
     # documents (see tests/test_correctness.py).
     causal_window: int = 1
+
+
+@dataclass(frozen=True)
+class PromptConfig:
+    """Thresholds for ``scre.prompt_reducer.PromptReducer`` (system-prompt mode).
+
+    Everything not covered by a rule below is kept: the prompt reducer only
+    ever drops trimmed examples, near-duplicate instructions, horizontal
+    rules and the headings/labels/tag pairs left empty by those drops.
+    """
+
+    # Keep at most this many examples per group of sibling examples.
+    example_keep: int = 2
+    # Word-set Jaccard similarity at/above which a later instruction is a
+    # duplicate of an earlier one (only blocks at least ``duplicate_min_chars`` long).
+    duplicate_threshold: float = 0.9
+    duplicate_min_chars: int = 40
+    # Strip trailing spaces and collapse 3+ newlines (never inside code).
+    normalize_whitespace: bool = True
+    drop_horizontal_rules: bool = True
+
+    # Task-based module dropping (only when a task is given to ``reduce``).
+    # A section with two or more child sections is split into them once it
+    # exceeds ``module_split_chars``; modules under ``module_min_chars`` are
+    # always kept; a task term found in at most this share of the sections
+    # counts as matching the section it appears in.
+    module_split_chars: int = 1500
+    module_min_chars: int = 400
+    module_max_df_ratio: float = 0.5
+
+    # ``reduce(selector=...)``: how much of each section's text the selector sees, and what to do if the
+    # selector raises. "keep" -> redundancy-only reduction (safest); "match" -> the built-in task matcher.
+    selector_text_chars: int = 3000
+    on_selector_error: str = "keep"

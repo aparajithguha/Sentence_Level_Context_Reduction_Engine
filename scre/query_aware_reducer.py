@@ -23,6 +23,11 @@ into single-responsibility modules that hold the actual pipeline logic:
 - ``scre.selection``   -- token-budgeted selection + expansion
 - ``scre.assembly``    -- final compressed-context rendering
 
+System/agent prompts have their own path, ``SCRE.reduce_prompt`` (see
+``scre.prompt_reducer``): it keeps every instruction and removes only
+repeated instructions, surplus examples and decoration, and needs neither
+spaCy nor the embedder.
+
 ``reduce`` runs in two halves:
 
 1. **Analysis** (``SCRE._analyze``, also exposed query-independently via
@@ -45,7 +50,8 @@ reduction.
 
 Public API
 ----------
-- ``SCRE``       – Main engine class (``reduce``, ``analyze``).
+- ``SCRE``       – Main engine class (``reduce``, ``reduce_prompt``, ``analyze``).
+- ``PromptReducer`` – Prompt-mode reducer used by ``reduce_prompt`` (``scre.prompt_reducer``).
 - ``SemanticUnit``  – Atomic unit of extracted meaning (``scre.units``).
 - ``WorkflowUnit``  – Specialised unit for ordered procedural steps (``scre.units``).
 - ``UnitExtractorStrategy`` – Abstract base for extraction plug-ins (``scre.extraction``).
@@ -62,9 +68,13 @@ now live in the modules listed above.
 from __future__ import annotations
 
 import os
+import warnings
 from typing import Any
 
-import numpy as np
+try:
+    import numpy as np
+except ImportError:  # only the embedder path needs numpy; prompt mode needs neither
+    np = None
 
 try:
     import spacy
@@ -78,7 +88,8 @@ except ImportError:
 
 try:
     from . import models as _models
-    from .config import ScoringConfig
+    from .config import ScoringConfig, PromptConfig
+    from .prompt_reducer import PromptReducer
     from .utils import DummySentence, compute_idf, estimate_tokens
     from .units import SemanticUnit, WorkflowUnit
     from .extraction import (
@@ -100,7 +111,8 @@ try:
     from .assembly import build_compressed_context
 except ImportError:
     import models as _models
-    from config import ScoringConfig
+    from config import ScoringConfig, PromptConfig
+    from prompt_reducer import PromptReducer
     from utils import DummySentence, compute_idf, estimate_tokens
     from units import SemanticUnit, WorkflowUnit
     from extraction import (
@@ -138,6 +150,8 @@ __all__ = [
     "RegexKeyValueExtractor",
     "DefaultNLPExtractor",
     "KnowledgeGraph",
+    "PromptReducer",
+    "PromptConfig",
     "build_compressed_context",
     "select_semantic_units",
 ]
@@ -156,6 +170,7 @@ class SCRE:
         nlp: Any = None,
         embedder: Any = None,
         config: ScoringConfig | None = None,
+        prompt_config: PromptConfig | None = None,
     ):
         """Initialise the SCRE engine.
 
@@ -186,6 +201,8 @@ class SCRE:
             config: Scoring/graph/selection thresholds (see ``scre.config.
                 ScoringConfig``). Defaults to ``ScoringConfig()`` — the same
                 values previously hardcoded inline.
+            prompt_config: Thresholds for ``reduce_prompt`` (see
+                ``scre.config.PromptConfig``). Defaults to ``PromptConfig()``.
         """
         if nlp is not None:
             self.nlp = nlp
@@ -194,8 +211,13 @@ class SCRE:
         else:
             self.nlp = None
 
-        self.embedder = embedder if embedder is not None else _models.get_embedder()
+        # Loaded on first use, so prompt mode (``reduce_prompt``) never pays for the embedding model.
+        # ``embedder=False`` disables dense scoring outright.
+        self._embedder = embedder
+        self._spacy_missing = bool(model) and nlp is None and self.nlp is None
+        self._warned_spacy = False
         self.config = config if config is not None else ScoringConfig()
+        self._prompt_reducer = PromptReducer(prompt_config)
 
         self.content_pos = {"NOUN", "PROPN", "VERB", "ADJ"}
 
@@ -214,6 +236,42 @@ class SCRE:
 
         else:
             self.extractors = extractors
+
+    @property
+    def embedder(self) -> Any:
+        if self._embedder is None:
+            self._embedder = _models.get_embedder()
+        return self._embedder
+
+    @embedder.setter
+    def embedder(self, value: Any) -> None:
+        self._embedder = value
+
+    def reduce_prompt(
+        self, text: str, task: str | None = None, drop_modules: set[int] | list[int] | None = None,
+        selector: Any = None,
+    ) -> dict[str, Any]:
+        """Reduce a system/agent prompt while keeping every instruction.
+
+        Unlike ``reduce``, this selects no sentences by relevance: the prompt
+        is split into structural blocks (sections, lists, examples, code/JSON,
+        tag pairs) and only redundant blocks are removed -- repeated
+        instructions, examples beyond the first few of each group, horizontal
+        rules, and the headings/tags left empty by those removals. Kept
+        blocks are emitted word for word in their original order; code, JSON
+        and tool definitions are never touched. Runs no model.
+
+        Given a ``task``, sections the task cannot use are also dropped
+        whole; ``drop_modules`` (ids from ``PromptReducer.outline``) lets the
+        caller choose them instead, with the same guards, and ``selector`` (for
+        example ``scre.prompt_select.llm_selector(your_ask_function)``) lets an
+        LLM you supply choose them, falling back to a safe reduction on failure.
+
+        Returns:
+            ``{"context": str, "metadata": {...}, "blocks": [...]}`` -- see
+            ``scre.prompt_reducer.PromptReducer.reduce``.
+        """
+        return self._prompt_reducer.reduce(text, task=task, drop_modules=drop_modules, selector=selector)
 
     def _analyze(self, text: str) -> tuple[list[SemanticUnit], KnowledgeGraph, dict[int, set[int]], int, int, int]:
         """Segment, classify, and graph ``text`` — the query-independent half of ``reduce``.
@@ -359,6 +417,10 @@ class SCRE:
               ``original_estimated_tokens``, ``reduced_estimated_tokens``,
               and ``reduction_ratio``.
         """
+        if self._spacy_missing and not self._warned_spacy:
+            self._warned_spacy = True
+            warnings.warn("spaCy is not installed, so document mode runs in regex-only mode. "
+                          "Install it with: pip install 'scre[document]'", stacklevel=2)
         all_extracted_units, knowledge_graph, reasoning_graph, original_chars, original_sentences, original_estimated_tokens = self._analyze(text)
 
         if not all_extracted_units:
