@@ -32,7 +32,7 @@ except ImportError:
     ollama = None
 
 # Target fraction of tokens LLMLingua-2 is asked to keep. Set to match the
-# average compression SCRE achieves on this same suite (see BENCHMARK_REPORT.md,
+# average compression SCRE achieves on this same suite (see BENCHMARK_REPORT_sample.md,
 # "SCRE Publishable Evaluation Suite" -- ~84% compression => ~16% kept), so
 # the two engines are compared at a comparable output budget rather than
 # whatever ratio LLMLingua's default happens to produce.

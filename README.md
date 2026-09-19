@@ -5,7 +5,6 @@
 [![Status](https://img.shields.io/badge/status-Research--Grade-purple)](README.md)
 [![Document mode](https://img.shields.io/badge/document%20mode-SPS%2084.17%20(20--question%20sample)-brightgreen)](BENCHMARK_REPORT_sample.md)
 [![Prompt mode](https://img.shields.io/badge/prompt%20mode-behavior%20held%208%2F8%20valid%20cases-brightgreen)](BENCHMARK_PROMPT_MODE.md)
-[![Docs](https://img.shields.io/badge/docs-GRACE--Deep--Dive-blue)](SCRE_DEEPDIVE.html)
 
 > **ℹ️ NAMING:** This project was previously called **SCRE** (Sentence-level Context Reduction Engine). The name **GRACE** better reflects what actually differentiates it — graph-aware reasoning-chain preservation and structure-aware prompt reduction, not just sentence selection. This is a documentation-level rename only: the Python package, module names, and the `SCRE` class are unchanged for backward compatibility — every code example below still reads `from scre.query_aware_reducer import SCRE`.
 
@@ -41,7 +40,7 @@ Modern LLMs have massive context windows, but stuffing them with raw documents o
 
 GRACE sits between your retrieval layer or prompt and your LLM, acting as a structure-aware compression filter.
 
-> 💡 **See it in action:** [WORKFLOW_EXAMPLE.md](WORKFLOW_EXAMPLE.md) walks through the same document and query across all four document-mode strategies — Raw Context, BM25, Vector Search, and GRACE. The [Showcase demo](#-showcase-demo-web-ui) lets you paste a system prompt or a document and see what was kept, dropped, and why.
+> 💡 **See it in action:** the [Showcase demo](#-showcase-demo-web-ui) lets you paste a system prompt or a document and see what was kept, dropped, and why.
 
 ---
 
@@ -436,7 +435,7 @@ result["reasoning_edges"]  # [(source_idx, target_idx), ...]
 
 ## 🖥️ Interactive Dashboard
 
-GRACE ships with a research-grade Streamlit dashboard for exploration and evaluation of **document mode**:
+GRACE ships with a research-grade Streamlit dashboard for exploration and evaluation of **document mode**. Its Performance tab reads `tests/benchmark_results.json`, the last *full-suite* run (2026-09-14, before later fixes to workflow detection and reasoning-chain expansion), so re-run the full suite to refresh it:
 
 ```bash
 streamlit run dashboard.py
@@ -478,7 +477,8 @@ python tests/unified_benchmark.py
 # Skip the slow LLM baseline (about 30 minutes on a laptop) and reuse its saved row, marked with † in the report
 SCRE_BENCH_SKIP_LLM=1 SCRE_BENCH_CARRY=E_LangChain_LLMExtract python tests/unified_benchmark.py
 
-# Full suite (75 docs, 100 Q&As): set the sample size to 100 or more
+# Full suite (75 docs, 100 Q&As): set the sample size to 100 or more.
+# Also writes BENCHMARK_REPORT.md and tests/benchmark_results.json/.csv, which the dashboard reads.
 SCRE_BENCH_SAMPLE=100 python tests/unified_benchmark.py
 ```
 
@@ -564,9 +564,7 @@ SCRE/
 ├── dashboard.py                    # Streamlit interactive dashboard (document mode)
 ├── BENCHMARK_PROMPT_MODE.md        # Prompt-mode benchmark report
 ├── BENCHMARK_REPORT_sample.md      # Document-mode sample report
-├── BENCHMARK_REPORT.md             # Earlier full-suite report (historical; see its banner)
-├── WORKFLOW_EXAMPLE.md             # Step-by-step retrieval comparison walkthrough
-├── SCRE_DEEPDIVE.html              # Technical deep-dive document
+├── LICENSE                         # MIT
 └── pyproject.toml                  # Project configuration
 ```
 
@@ -694,9 +692,7 @@ print(f"Saved {token_savings} tokens (~${token_savings * 0.000003:.4f} at GPT-4 
 | [README.md](README.md) | This file — overview, both modes, quick start |
 | [BENCHMARK_PROMPT_MODE.md](BENCHMARK_PROMPT_MODE.md) | Prompt-mode benchmark: method, all cases, every round, same-size baselines, and limitations |
 | [BENCHMARK_REPORT_sample.md](BENCHMARK_REPORT_sample.md) | Document-mode comparison (20-question / 19-doc sample) of Raw / BM25 / Vector / GRACE and a LangChain-style LLM-extraction baseline |
-| [BENCHMARK_REPORT.md](BENCHMARK_REPORT.md) | Earlier full-suite (75-doc / 100-Q&A) report, kept for history |
-| [WORKFLOW_EXAMPLE.md](WORKFLOW_EXAMPLE.md) | Step-by-step retrieval comparison (Raw vs BM25 vs Vector vs GRACE) |
-| [SCRE_DEEPDIVE.html](SCRE_DEEPDIVE.html) | Technical architecture, scoring formula, and benchmark analysis (document mode) |
+| [LICENSE](LICENSE) | MIT License |
 
 ---
 
